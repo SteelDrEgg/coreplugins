@@ -1,7 +1,7 @@
 ;(function (global) {
   const SOCKET_IO_CDN = "https://cdn.socket.io/4.7.5/socket.io.min.js"
-  const DEFAULT_SOCKET_PATH = "/socket.io/"
-  const DEFAULT_USER_API = "/api/session/me"
+  const SOCKET_PATH = "/socket.io/"
+  const SESSION_API = "/api/session"
 
   let socketIOLoadPromise = null
 
@@ -30,7 +30,7 @@
   }
 
   async function getCurrentUsername(apiPath) {
-    const response = await fetch(apiPath || DEFAULT_USER_API, {
+    const response = await fetch(apiPath || SESSION_API + "/me", {
       method: "GET",
       credentials: "include"
     })
@@ -51,7 +51,7 @@
   async function createSocket(namespace) {
     const ioFactory = await loadScript(SOCKET_IO_CDN)
     return ioFactory(namespace || "/", {
-      path: DEFAULT_SOCKET_PATH
+      path: SOCKET_PATH
     })
   }
 
