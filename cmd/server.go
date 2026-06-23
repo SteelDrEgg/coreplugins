@@ -1,31 +1,39 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"minimalpanel/internal/conf"
 	"minimalpanel/internal/netx"
+	"minimalpanel/internal/plugins"
 	"minimalpanel/internal/web"
 	"net/http"
 )
 
 func main() {
-	conf.LoadConfig("config.toml")
+	if err := conf.LoadConfig("config.toml"); err != nil {
+		panic(err)
+	}
 
-	// Initialize the global Socket.IO server with all namespaces
-	netx.SetupGlobalServer()
-
-	// Setup Socket.IO services (they will use the global server)
+	sio := netx.SetupGlobalServer()
 	web.SetupSSHService()
 	web.SetupDashboardService()
 
-	// Register the Socket.IO handler once
-	http.Handle("/socket.io/", netx.GetHandler())
+	mux := http.NewServeMux()
+	mux.Handle("/socket.io/", netx.GetHandler())
 
-	// Setup HTTP routes
-	web.StartPages(http.DefaultServeMux)
-	web.StartAssets(http.DefaultServeMux)
-	web.StartIndex(http.DefaultServeMux)
-	web.StartLogin(http.DefaultServeMux)
-	web.StartSessionUtil(http.DefaultServeMux)
+	web.StartPages(mux)
+	web.StartAssets(mux)
+	web.StartIndex(mux)
+	web.StartLogin(mux)
+	web.StartSessionUtil(mux)
 
-	http.ListenAndServe(":8080", nil)
+	if err := plugins.RegisterCorePlugins(context.Background(), mux, sio); err != nil {
+		panic(err)
+	}
+
+	fmt.Println("minimalpanel listening on :8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		panic(err)
+	}
 }

@@ -39,7 +39,10 @@ var sessionManager = &SSHSessionManager{
 // SetupSSHService sets up the SSH socket.io namespace on the global server
 func SetupSSHService() {
 	server := netx.GetGlobalServer()
-	sshNamespace := server.GetNamespace("/ssh")
+	sshNamespace, ok := server.GetNamespace("/ssh")
+	if !ok {
+		sshNamespace = server.AddNamespace("/ssh")
+	}
 
 	// Handle SSH connection requests
 	sshNamespace.AddEvent("connect_ssh", handleSSHConnect)
