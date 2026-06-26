@@ -1,0 +1,94 @@
+//go:build wasip1
+
+// Command hello is a minimal WASM example plugin for minimalpanel.
+//
+// It demonstrates the full plugin contract:
+//   - Register: declares an HTTP route and a Socket.IO namespace, logs through
+//     the host, and seeds a value into the shared KV store.
+//   - HandleHTTP: reads back the seeded KV value and returns a plain-text reply.
+//   - HandleSocketEvent: replies to "ping" by emitting "pong" back to the
+//     calling socket (the emit-in-reply pattern used by WASM plugins).
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	panel "minimalpanel/pluginsdk/wasm/proto"
+)
+
+func main() {}
+
+func init() {
+	panel.RegisterPlugin(helloPlugin{})
+}
+
+const (
+	kvNamespace = "hello"
+	kvGreeting  = "greeting"
+)
+
+type helloPlugin struct{}
+
+func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
+	host := panel.NewHost()
+
+	_, _ = host.Log(ctx, &panel.LogRequest{
+		Level:   "info",
+		Message: "hello plugin registering, instance=" + req.GetInstanceId(),
+	})
+
+	if _, err := host.KVSet(ctx, &panel.KVSetRequest{
+		Namespace: kvNamespace,
+		Key:       kvGreeting,
+		Value:     []byte("Hello from the hello plugin!"),
+	}); err != nil {
+		return nil, err
+	}
+
+	return &panel.RegisterReply{
+		Name:    "hello",
+		Version: "0.1.0",
+		HttpRoutes: []*panel.HTTPRoute{
+			{Method: "GET", Pattern: "/hello"},
+		},
+		SocketNamespaces: []*panel.SocketNamespace{
+			{Name: "/hello", Events: []string{"ping"}},
+		},
+	}, nil
+}
+
+func (helloPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*panel.HTTPResponse, error) {
+	host := panel.NewHost()
+
+	greeting := "Hello!"
+	if reply, err := host.KVGet(ctx, &panel.KVGetRequest{Namespace: kvNamespace, Key: kvGreeting}); err == nil && reply.GetFound() {
+		greeting = string(reply.GetValue())
+	}
+
+	body := fmt.Sprintf("%s\nYou requested: %s %s\n", greeting, req.GetMethod(), req.GetPath())
+	return &panel.HTTPResponse{
+		Status:  200,
+		Headers: map[string]string{"Content-Type": "text/plain; charset=utf-8"},
+		Body:    []byte(body),
+	}, nil
+}
+
+func (helloPlugin) HandleSocketEvent(ctx context.Context, ev *panel.SocketEvent) (*panel.SocketEventReply, error) {
+	payload, err := json.Marshal([]any{map[string]string{"message": "pong from hello plugin"}})
+	if err != nil {
+		return nil, err
+	}
+
+	return &panel.SocketEventReply{
+		Emits: []*panel.EmitInstruction{
+			{
+				Namespace: ev.GetNamespace(),
+				Target:    ev.GetSocketId(),
+				Event:     "pong",
+				Payload:   payload,
+			},
+		},
+	}, nil
+}

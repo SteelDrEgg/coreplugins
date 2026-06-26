@@ -70,10 +70,7 @@ type DiskMetric struct {
 // SetupDashboardService sets up the dashboard socket.io namespace on the global server
 func SetupDashboardService() {
 	server := netx.GetGlobalServer()
-	dashNamespace, ok := server.GetNamespace("/dashboard")
-	if !ok {
-		dashNamespace = server.AddNamespace("/dashboard")
-	}
+	dashNamespace := server.GetNamespace("/dashboard")
 
 	// Handle dashboard connection requests
 	dashNamespace.AddEvent("connect_dashboard", handleDashboardConnect)

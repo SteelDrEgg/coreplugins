@@ -1,0 +1,7 @@
+Name: hello
+Version: 0.1.0
+Type: wasm
+ContractVersion: 1
+Command: $PLUGIN_ROOT/hello.wasm
+DisplayName: Hello
+Category: core

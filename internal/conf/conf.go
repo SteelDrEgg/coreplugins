@@ -12,9 +12,14 @@ var (
 	mu   sync.RWMutex // Protects access to Conf
 	Conf = Config{    // Default values
 		SSHConfigPath: "~/.ssh",
+		Listen:        ":8080",
 		Auth:          Auth{},
 		Web: Web{
 			RootPath: "web",
+		},
+		Plugin: Plugin{
+			PluginDir:     "plugins",
+			PluginTempDir: "tmp",
 		},
 	}
 )
@@ -80,10 +85,12 @@ func Read() Config {
 	// Create a deep copy of the config
 	conf := Config{
 		SSHConfigPath: Conf.SSHConfigPath,
+		Listen:        Conf.Listen,
 		Auth: Auth{
 			Users: make(map[string]string),
 		},
-		Web: Conf.Web,
+		Web:    Conf.Web,
+		Plugin: Conf.Plugin,
 	}
 
 	// Copy the users map

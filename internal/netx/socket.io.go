@@ -12,8 +12,7 @@ import (
 // Socket represents a wrapper around the Socket.IO server
 type Socket struct {
 	sock       *socket.Server
-	mu         sync.RWMutex
-	Namespaces map[string]*Namespace
+	Namespaces map[string]Namespace
 }
 
 // Initialize configures and creates the Socket.IO server
@@ -26,30 +25,29 @@ func (self *Socket) Initialize() {
 	))
 	opts.SetMaxHttpBufferSize(1e7) // 10MB
 	self.sock = socket.NewServer(nil, opts)
-	self.Namespaces = make(map[string]*Namespace)
+	self.Namespaces = make(map[string]Namespace)
 }
 
-// AddNamespace creates a new Socket.IO namespace and adds it to the server
-func (self *Socket) AddNamespace(name string) *Namespace {
-	self.mu.Lock()
-	defer self.mu.Unlock()
-
-	if existing, ok := self.Namespaces[name]; ok {
-		return existing
+// AddNamespace creates a new Socket.IO namespace and adds it to the server.
+// It is idempotent: calling it again for an existing namespace is a no-op.
+func (self *Socket) AddNamespace(name string) {
+	if _, ok := self.Namespaces[name]; ok {
+		return
 	}
-
-	namespace := &Namespace{namespace: self.sock.Of(name, nil)}
+	namespace := Namespace{namespace: self.sock.Of(name, nil)}
 	namespace.Initialize()
 	self.Namespaces[name] = namespace
-	return namespace
+}
+
+// HasNamespace reports whether the named namespace has been added.
+func (self *Socket) HasNamespace(name string) bool {
+	_, ok := self.Namespaces[name]
+	return ok
 }
 
 // GetNamespace returns the desired namespace
-func (self *Socket) GetNamespace(name string) (*Namespace, bool) {
-	self.mu.RLock()
-	defer self.mu.RUnlock()
-	namespace, ok := self.Namespaces[name]
-	return namespace, ok
+func (self *Socket) GetNamespace(name string) Namespace {
+	return self.Namespaces[name]
 }
 
 // Handler returns an HTTP handler for the Socket.IO server
@@ -59,10 +57,16 @@ func (self *Socket) Handler() http.Handler {
 
 // Namespace represents a Socket.IO namespace with custom event handling
 type Namespace struct {
-	namespace  socket.Namespace
-	mu         sync.RWMutex
-	events     map[string]func(client *socket.Socket, data ...any)
-	registered bool
+	namespace socket.Namespace
+	events    map[string]func(client *socket.Socket, data ...any)
+	//middileWare []func(client *socket.Socket, next func())
+}
+
+// Raw returns the underlying Socket.IO namespace for advanced use such as the
+// plugin Socket.IO bridge. It uses a value receiver so it can be called on the
+// namespaces returned by Socket.GetNamespace.
+func (self Namespace) Raw() socket.Namespace {
+	return self.namespace
 }
 
 // Initialize sets up the namespace with default event handlers
@@ -74,34 +78,15 @@ func (self *Namespace) Initialize() {
 
 // AddEvent registers a custom event handler for the namespace
 func (self *Namespace) AddEvent(event string, f func(*socket.Socket, ...any)) {
-	self.mu.Lock()
-	defer self.mu.Unlock()
 	self.events[event] = f
 }
 
 // RegisterEvents activates all the event handlers for new client connections
 func (self *Namespace) RegisterEvents() {
-	self.mu.Lock()
-	if self.registered {
-		self.mu.Unlock()
-		return
-	}
-	self.registered = true
-	self.mu.Unlock()
-
 	self.namespace.On("connection", func(clients ...any) {
 		client := clients[0].(*socket.Socket)
-		self.mu.RLock()
-		handlers := make(map[string]func(*socket.Socket, ...any), len(self.events))
 		for event, f := range self.events {
-			handlers[event] = f
-		}
-		self.mu.RUnlock()
-
-		for event, f := range handlers {
-			handler := f
-			eventName := event
-			client.On(eventName, func(data ...any) { handler(client, data...) })
+			client.On(event, func(data ...any) { f(client, data) })
 		}
 	})
 }
@@ -149,7 +134,9 @@ func GetHandler() http.Handler {
 func Start(addr string) error {
 	server := new(Socket)
 	server.Initialize()
-	defaultNamespace := server.AddNamespace("/ttt")
+	server.AddNamespace("/ttt")
+
+	defaultNamespace := server.Namespaces["/ttt"]
 
 	defaultNamespace.AddEvent("message", func(client *socket.Socket, data ...any) {
 		client.Emit("message", data...)
