@@ -39,10 +39,16 @@ func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*p
 		Message: "hello plugin registering, instance=" + req.GetInstanceId(),
 	})
 
+	// Plugins can read host-provided config params directly.
+	greeting := "Hello from the hello plugin!"
+	if g, ok := req.GetParams()["greeting"]; ok && g != "" {
+		greeting = g
+	}
+
 	if _, err := host.KVSet(ctx, &panel.KVSetRequest{
 		Namespace: kvNamespace,
 		Key:       kvGreeting,
-		Value:     []byte("Hello from the hello plugin!"),
+		Value:     []byte(greeting),
 	}); err != nil {
 		return nil, err
 	}
@@ -52,9 +58,14 @@ func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*p
 		Version: "0.1.0",
 		HttpRoutes: []*panel.HTTPRoute{
 			{Method: "GET", Pattern: "/hello"},
+			{Method: "GET", Pattern: "/hello/private", Protected: true},
 		},
 		SocketNamespaces: []*panel.SocketNamespace{
-			{Name: "/hello", Events: []string{"ping"}},
+			{
+				Name:            "/hello",
+				Events:          []string{"ping", "ping_private"},
+				ProtectedEvents: []string{"ping_private"},
+			},
 		},
 	}, nil
 }
@@ -68,6 +79,9 @@ func (helloPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*pan
 	}
 
 	body := fmt.Sprintf("%s\nYou requested: %s %s\n", greeting, req.GetMethod(), req.GetPath())
+	if req.GetPath() == "/hello/private" {
+		body += "Protected route access granted.\n"
+	}
 	return &panel.HTTPResponse{
 		Status:  200,
 		Headers: map[string]string{"Content-Type": "text/plain; charset=utf-8"},
@@ -76,7 +90,11 @@ func (helloPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*pan
 }
 
 func (helloPlugin) HandleSocketEvent(ctx context.Context, ev *panel.SocketEvent) (*panel.SocketEventReply, error) {
-	payload, err := json.Marshal([]any{map[string]string{"message": "pong from hello plugin"}})
+	msg := "pong from hello plugin"
+	if ev.GetEvent() == "ping_private" {
+		msg = "protected pong from hello plugin"
+	}
+	payload, err := json.Marshal([]any{map[string]string{"message": msg}})
 	if err != nil {
 		return nil, err
 	}
