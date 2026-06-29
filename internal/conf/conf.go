@@ -2,9 +2,10 @@ package conf
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"os"
 	"sync"
+
+	"github.com/BurntSushi/toml"
 )
 
 var (
@@ -21,6 +22,9 @@ var (
 			PluginDir:     "plugins",
 			PluginTempDir: "tmp",
 		},
+		Plugins: map[string]PluginPolicy{
+			pluginsDefaultKey: {Restart: "always"},
+		},
 	}
 )
 
@@ -32,8 +36,8 @@ func LoadConfig(path string) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			f, err := os.OpenFile(path, os.O_CREATE, 0644)
-			defer f.Close()
 			if err == nil {
+				defer f.Close()
 				return nil
 			}
 		}
@@ -89,13 +93,24 @@ func Read() Config {
 		Auth: Auth{
 			Users: make(map[string]string),
 		},
-		Web:    Conf.Web,
-		Plugin: Conf.Plugin,
+		Web:     Conf.Web,
+		Plugin:  Conf.Plugin,
+		Plugins: make(map[string]PluginPolicy),
 	}
 
 	// Copy the users map
 	for k, v := range Conf.Auth.Users {
 		conf.Auth.Users[k] = v
+	}
+	for k, v := range Conf.Plugins {
+		policy := PluginPolicy{Restart: v.Restart}
+		if len(v.Params) > 0 {
+			policy.Params = make(map[string]string, len(v.Params))
+			for pk, pv := range v.Params {
+				policy.Params[pk] = pv
+			}
+		}
+		conf.Plugins[k] = policy
 	}
 
 	return conf

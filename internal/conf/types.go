@@ -6,6 +6,7 @@ type Config struct {
 	Auth
 	Web
 	Plugin
+	Plugins map[string]PluginPolicy
 }
 
 type Auth struct {
@@ -22,4 +23,14 @@ type Plugin struct {
 	PluginDir string
 	// PluginTempDir is where plugin packages are extracted at load time.
 	PluginTempDir string
+}
+
+// PluginPolicy controls plugin runtime behavior from [Plugins.<name>].
+type PluginPolicy struct {
+	// Restart controls auto-start behavior at host startup.
+	// Typical values: "always", "yes", "true", "on", "no", "false", "off".
+	Restart string
+	// Params are arbitrary string config values passed directly to the plugin
+	// at registration, from [Plugins.<name>.params].
+	Params map[string]string
 }
