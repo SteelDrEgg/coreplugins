@@ -4,7 +4,7 @@ PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
 PLUGIN_DIR := plugins
 DIST_DIR := dist
 
-.PHONY: tools proto proto-grpc proto-wasm build run hello hello-wasm clean
+.PHONY: tools proto proto-grpc proto-wasm build run hello hello-wasm web-assets web-assets-wasm login login-wasm clean
 
 ## tools: install the protobuf generators used by `make proto`
 tools:
@@ -50,6 +50,36 @@ hello-wasm:
 	mkdir -p $(DIST_DIR)
 	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/hello.wasm -buildmode=c-shared ./coreplugins/hello
 
+## web-assets: build and package web assets plugin into plugins/web-assets.plg
+web-assets: web-assets-wasm
+	rm -rf $(DIST_DIR)/web_assets_pkg
+	mkdir -p $(DIST_DIR)/web_assets_pkg/Content/assets $(PLUGIN_DIR)
+	cp $(DIST_DIR)/web_assets.wasm $(DIST_DIR)/web_assets_pkg/Content/web_assets.wasm
+	cp coreplugins/webassets/info.yaml $(DIST_DIR)/web_assets_pkg/info.yaml
+	cp -R web/assets/css $(DIST_DIR)/web_assets_pkg/Content/assets/css
+	cp -R web/assets/icon $(DIST_DIR)/web_assets_pkg/Content/assets/icon
+	cd $(DIST_DIR)/web_assets_pkg && zip -qr ../../$(PLUGIN_DIR)/web-assets.plg .
+	rm -rf $(DIST_DIR)/web_assets_pkg
+
+web-assets-wasm:
+	mkdir -p $(DIST_DIR)
+	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/web_assets.wasm -buildmode=c-shared ./coreplugins/webassets
+
+## login: build and package login pages plugin into plugins/login.plg
+login: login-wasm
+	rm -rf $(DIST_DIR)/login_pkg
+	mkdir -p $(DIST_DIR)/login_pkg/Content/pages $(PLUGIN_DIR)
+	cp $(DIST_DIR)/login.wasm $(DIST_DIR)/login_pkg/Content/login.wasm
+	cp coreplugins/login/info.yaml $(DIST_DIR)/login_pkg/info.yaml
+	cp coreplugins/login/pages/login.html $(DIST_DIR)/login_pkg/Content/pages/login.html
+	cp coreplugins/login/pages/logout.html $(DIST_DIR)/login_pkg/Content/pages/logout.html
+	cd $(DIST_DIR)/login_pkg && zip -qr ../../$(PLUGIN_DIR)/login.plg .
+	rm -rf $(DIST_DIR)/login_pkg
+
+login-wasm:
+	mkdir -p $(DIST_DIR)
+	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/login.wasm -buildmode=c-shared ./coreplugins/login
+
 ## clean: remove build artifacts
 clean:
-	rm -rf $(DIST_DIR) $(PLUGIN_DIR)/hello.plg tmp
+	rm -rf $(DIST_DIR) $(PLUGIN_DIR)/hello.plg $(PLUGIN_DIR)/web-assets.plg $(PLUGIN_DIR)/login.plg tmp

@@ -13,6 +13,7 @@ import (
 	"minimalpanel/internal/conf"
 	"minimalpanel/internal/netx"
 	"minimalpanel/internal/plugin"
+	"minimalpanel/internal/web"
 )
 
 func main() {
@@ -29,12 +30,15 @@ func main() {
 	// Socket.IO server (plugins attach their own namespaces).
 	socketServer := netx.GetGlobalServer()
 	mux.Handle("/socket.io/", socketServer.Handler())
+	// Keep auth endpoints so protected plugin routes/events can be used.
+	web.StartLogin(mux)
 
 	pm, err := plugin.NewManager(plugin.Options{
-		TempDir: cfg.PluginTempDir,
-		Mux:     mux,
-		Socket:  socketServer,
-		Logger:  logger,
+		TempDir:        cfg.PluginTempDir,
+		Mux:            mux,
+		Socket:         socketServer,
+		Logger:         logger,
+		ParamsResolver: cfg.PluginParams,
 	})
 	if err != nil {
 		logger.Error("failed to create plugin manager", "err", err)
@@ -42,8 +46,22 @@ func main() {
 	}
 	defer pm.Close()
 
-	if err := pm.LoadDir(cfg.PluginDir); err != nil {
+	if err := pm.ScanDir(cfg.PluginDir); err != nil {
 		logger.Error("failed to scan plugin directory", "dir", cfg.PluginDir, "err", err)
+	}
+	if err := pm.StartMatching(func(d plugin.DiscoveredPlugin) bool {
+		return cfg.PluginAutoStart(d.Name)
+	}); err != nil {
+		logger.Error("failed to start configured plugins", "err", err)
+	}
+	for _, d := range pm.Discovered() {
+		logger.Info("discovered plugin",
+			"name", d.Name,
+			"version", d.Version,
+			"type", d.Type,
+			"auto_start", cfg.PluginAutoStart(d.Name),
+			"package", d.PackagePath,
+		)
 	}
 
 	srv := &http.Server{Addr: cfg.Listen, Handler: mux}
