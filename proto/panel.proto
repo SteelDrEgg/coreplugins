@@ -8,6 +8,7 @@ option go_package = "minimalpanel/pluginsdk/proto";
 message HTTPRoute {
   string method = 1;  // GET/POST/...; empty = any method
   string pattern = 2; // e.g. "/hello", "/api/foo/"
+  bool protected = 3; // requires host authentication when true
 }
 
 message HTTPRequest {
@@ -26,10 +27,19 @@ message HTTPResponse {
   bytes body = 3;
 }
 
+// ===== static files =====
+message StaticMount {
+  string prefix = 1;    // URL path prefix, e.g. "/assets/"
+  string directory = 2; // host directory path to serve
+  bool protected = 3;   // requires host authentication when true
+}
+
 // ===== socket.io =====
 message SocketNamespace {
   string name = 1;            // e.g. "/hello"
   repeated string events = 2; // events the plugin handles
+  bool protected = 3;         // requires host authentication when true
+  repeated string protected_events = 4; // event-level auth override
 }
 
 message SocketEvent {
@@ -57,6 +67,7 @@ message RegisterRequest {
   string instance_id = 1;
   string host_callback_addr = 2;  // gRPC plugins dial this to call Host.*; WASM ignores
   string host_callback_token = 3; // auth token for host callbacks; WASM ignores
+  map<string, string> params = 4; // host-provided config params from [Plugins.<name>.params]
 }
 
 message RegisterReply {
@@ -64,6 +75,7 @@ message RegisterReply {
   string version = 2;
   repeated HTTPRoute http_routes = 3;
   repeated SocketNamespace socket_namespaces = 4;
+  repeated StaticMount static_mounts = 5;
 }
 
 // ===== KV =====
