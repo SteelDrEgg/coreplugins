@@ -64,6 +64,12 @@ type Manager struct {
 	mu      sync.Mutex
 	plugins map[string]*loadedPlugin
 
+	routeMu sync.RWMutex
+	routes  map[string]*httpRouteBinding
+
+	staticMu sync.RWMutex
+	static   map[string]*staticMountBinding
+
 	scanMu     sync.RWMutex
 	discovered map[string]DiscoveredPlugin // plugin name -> descriptor
 }
@@ -73,6 +79,18 @@ type loadedPlugin struct {
 	conn      pluginConn
 	record    *PluginRecord
 	grpcToken string
+}
+
+type httpRouteBinding struct {
+	owner string
+	route HTTPRoute
+	conn  pluginConn
+}
+
+type staticMountBinding struct {
+	owner   string
+	mount   StaticMount
+	handler http.Handler
 }
 
 // DiscoveredPlugin is metadata scanned from a .plg package's info.yaml without
@@ -112,12 +130,18 @@ func NewManager(opts Options) (*Manager, error) {
 		mux:            opts.Mux,
 		log:            log,
 		plugins:        make(map[string]*loadedPlugin),
+		routes:         make(map[string]*httpRouteBinding),
+		static:         make(map[string]*staticMountBinding),
 		discovered:     make(map[string]DiscoveredPlugin),
 		paramsResolver: opts.ParamsResolver,
 	}
 	m.registry = NewRegistry(m.kv)
 	m.socket = newSocketBridge(opts.Socket, log)
 	m.api = NewHostAPI(m.kv, m.socket, log)
+
+	if err := netx.HandleSafe(m.mux, "/", http.HandlerFunc(m.ServeHTTP)); err != nil {
+		return nil, err
+	}
 
 	m.hostGRPC = newGRPCHostServer(m.api)
 	addr, err := m.hostGRPC.Start()
@@ -246,6 +270,59 @@ func (m *Manager) Start(name string) error {
 	return err
 }
 
+// Stop unloads a running plugin by instance/name and releases its dynamic
+// runtime bindings. HTTP patterns remain registered with the host mux, but
+// their proxy handlers stop forwarding to the unloaded plugin.
+func (m *Manager) Stop(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("plugin name is required")
+	}
+
+	m.mu.Lock()
+	lp, ok := m.plugins[name]
+	if ok {
+		delete(m.plugins, name)
+	}
+	m.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("plugin %q is not running", name)
+	}
+
+	if lp.grpcToken != "" {
+		m.hostGRPC.revokeToken(lp.grpcToken)
+	}
+	m.unregisterRoutes(name)
+	m.unregisterStatic(name)
+	m.socket.unregisterPlugin(name)
+	m.registry.Remove(lp.record.InstanceID)
+
+	if err := m.inner.Unload(lp.handle); err != nil {
+		return fmt.Errorf("unload plugin %q: %w", name, err)
+	}
+	m.log.Info("stopped plugin", "name", name)
+	return nil
+}
+
+// Restart stops a plugin when it is running, then starts the latest scanned
+// package for the same name.
+func (m *Manager) Restart(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("plugin name is required")
+	}
+
+	m.mu.Lock()
+	_, running := m.plugins[name]
+	m.mu.Unlock()
+	if running {
+		if err := m.Stop(name); err != nil {
+			return err
+		}
+	}
+	return m.Start(name)
+}
+
 // StartMatching starts scanned plugins where shouldStart returns true.
 func (m *Manager) StartMatching(shouldStart func(DiscoveredPlugin) bool) error {
 	discovered := m.Discovered()
@@ -318,17 +395,17 @@ func (m *Manager) Load(path string) (*loadedPlugin, error) {
 	}
 
 	for _, route := range reg.Routes {
-		if err := m.registerRoute(route, conn); err != nil {
+		if err := m.registerRoute(instanceID, route, conn); err != nil {
 			m.log.Error("failed to register plugin route", "plugin", instanceID, "pattern", route.Pattern, "err", err)
 		}
 	}
 	for _, mount := range reg.Static {
-		if err := m.registerStatic(handle.RootPath(), mount); err != nil {
+		if err := m.registerStatic(instanceID, handle.RootPath(), mount); err != nil {
 			m.log.Error("failed to register plugin static mount", "plugin", instanceID, "prefix", mount.Prefix, "dir", mount.Directory, "err", err)
 		}
 	}
 	for _, ns := range reg.Namespaces {
-		if err := m.socket.register(ns, conn); err != nil {
+		if err := m.socket.register(instanceID, ns, conn); err != nil {
 			m.log.Error("failed to register plugin socket namespace", "plugin", instanceID, "namespace", ns.Name, "err", err)
 		}
 	}
@@ -450,6 +527,9 @@ func (m *Manager) Close() error {
 		if lp.grpcToken != "" {
 			m.hostGRPC.revokeToken(lp.grpcToken)
 		}
+		m.unregisterRoutes(lp.record.InstanceID)
+		m.unregisterStatic(lp.record.InstanceID)
+		m.socket.unregisterPlugin(lp.record.InstanceID)
 		m.registry.Remove(lp.record.InstanceID)
 		if err := m.inner.Unload(lp.handle); err != nil {
 			m.log.Error("failed to unload plugin", "plugin", lp.record.InstanceID, "err", err)

@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/assets/css/scheme_light.css">
+    <link rel="stylesheet" href="/assets/css/scheme_dark.css">
+    <title>Plugins</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--color-base-200);
+            color: var(--color-base-content);
+            line-height: 1.5;
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+        }
+
+        button {
+            border: 0;
+        }
+
+        .page {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 24px 0 32px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .title-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            background: var(--color-primary);
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+        }
+
+        .title-icon::before,
+        .icon {
+            content: "";
+            display: block;
+            width: 18px;
+            height: 18px;
+            background: currentColor;
+            mask: var(--icon-url) no-repeat center;
+            mask-size: contain;
+            -webkit-mask: var(--icon-url) no-repeat center;
+            -webkit-mask-size: contain;
+        }
+
+        .title-icon::before {
+            width: 22px;
+            height: 22px;
+            background: white;
+            --icon-url: url("/assets/icon/puzzle-solid.svg");
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 650;
+            letter-spacing: 0;
+            color: var(--color-base-content);
+            white-space: nowrap;
+        }
+
+        .subtitle {
+            color: color-mix(in oklab, var(--color-base-content) 62%, transparent);
+            font-size: 0.86rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            min-height: 36px;
+            border-radius: 6px;
+            padding: 0 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--color-base-content);
+            background: var(--color-base-100);
+            border: 1px solid var(--color-base-300);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+            white-space: nowrap;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: color-mix(in oklab, var(--color-primary) 8%, var(--color-base-100));
+            border-color: color-mix(in oklab, var(--color-primary) 42%, var(--color-base-300));
+        }
+
+        .btn.primary {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: white;
+        }
+
+        .btn.primary:hover:not(:disabled) {
+            background: color-mix(in oklab, var(--color-primary) 88%, black);
+            border-color: color-mix(in oklab, var(--color-primary) 88%, black);
+        }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .icon.refresh {
+            --icon-url: url("/assets/icon/refresh.svg");
+        }
+
+        .icon.puzzle {
+            --icon-url: url("/assets/icon/puzzle.svg");
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat,
+        .panel {
+            background: var(--color-base-100);
+            border: 1px solid var(--color-base-300);
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        .stat {
+            min-height: 76px;
+            padding: 14px 16px;
+        }
+
+        .stat-label {
+            color: color-mix(in oklab, var(--color-base-content) 58%, transparent);
+            font-size: 0.78rem;
+        }
+
+        .stat-value {
+            margin-top: 4px;
+            font-size: 1.45rem;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 340px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .panel {
+            overflow: hidden;
+        }
+
+        .panel-header {
+            min-height: 58px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--color-base-300);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .panel-title {
+            font-size: 0.95rem;
+            font-weight: 650;
+        }
+
+        .filterbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .field,
+        .select {
+            height: 36px;
+            border: 1px solid var(--color-base-300);
+            border-radius: 6px;
+            background: var(--color-base-100);
+            color: var(--color-base-content);
+            outline: none;
+        }
+
+        .field {
+            width: min(240px, 42vw);
+            padding: 0 10px;
+        }
+
+        .select {
+            padding: 0 34px 0 10px;
+            cursor: pointer;
+        }
+
+        .field:focus,
+        .select:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 14%, transparent);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+
+        th,
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--color-base-300);
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            color: color-mix(in oklab, var(--color-base-content) 62%, transparent);
+            font-size: 0.76rem;
+            font-weight: 650;
+            text-transform: uppercase;
+        }
+
+        td {
+            font-size: 0.88rem;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .plugin-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 220px;
+        }
+
+        .plugin-mark {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: color-mix(in oklab, var(--color-accent) 22%, var(--color-base-200));
+            display: grid;
+            place-items: center;
+            color: var(--color-accent-content);
+            flex: 0 0 auto;
+        }
+
+        .plugin-mark .icon {
+            width: 17px;
+            height: 17px;
+        }
+
+        .name-text {
+            min-width: 0;
+        }
+
+        .name-main {
+            font-weight: 650;
+            color: var(--color-base-content);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .name-sub {
+            color: color-mix(in oklab, var(--color-base-content) 58%, transparent);
+            font-size: 0.78rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 360px;
+        }
+
+        .badge {
+            min-height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            padding: 0 9px;
+            font-size: 0.76rem;
+            font-weight: 650;
+            white-space: nowrap;
+            background: var(--color-base-200);
+            color: color-mix(in oklab, var(--color-base-content) 74%, transparent);
+            border: 1px solid var(--color-base-300);
+        }
+
+        .badge.running {
+            background: color-mix(in oklab, var(--color-success) 20%, var(--color-base-100));
+            border-color: color-mix(in oklab, var(--color-success) 44%, var(--color-base-300));
+            color: var(--color-success-content);
+        }
+
+        .badge.stopped {
+            background: color-mix(in oklab, var(--color-warning) 18%, var(--color-base-100));
+            border-color: color-mix(in oklab, var(--color-warning) 42%, var(--color-base-300));
+            color: var(--color-warning-content);
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 0.78rem;
+            color: color-mix(in oklab, var(--color-base-content) 64%, transparent);
+        }
+
+        .metadata {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-width: 280px;
+        }
+
+        .action-cell {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            min-width: 230px;
+        }
+
+        .empty {
+            min-height: 220px;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            text-align: center;
+            color: color-mix(in oklab, var(--color-base-content) 62%, transparent);
+        }
+
+        .form {
+            padding: 14px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .form-row {
+            display: grid;
+            gap: 6px;
+        }
+
+        label {
+            color: color-mix(in oklab, var(--color-base-content) 64%, transparent);
+            font-size: 0.78rem;
+            font-weight: 650;
+        }
+
+        .form .field {
+            width: 100%;
+        }
+
+        .message {
+            min-height: 40px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--color-base-300);
+            background: var(--color-base-100);
+            color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+            font-size: 0.84rem;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.ok {
+            border-color: color-mix(in oklab, var(--color-success) 40%, var(--color-base-300));
+            background: color-mix(in oklab, var(--color-success) 13%, var(--color-base-100));
+            color: var(--color-success-content);
+        }
+
+        .message.error {
+            border-color: color-mix(in oklab, var(--color-error) 44%, var(--color-base-300));
+            background: color-mix(in oklab, var(--color-error) 13%, var(--color-base-100));
+            color: var(--color-error-content);
+        }
+
+        .runtime-list {
+            padding: 12px 14px 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .runtime-item {
+            border: 1px solid var(--color-base-300);
+            border-radius: 8px;
+            padding: 10px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .runtime-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-weight: 650;
+        }
+
+        .runtime-meta {
+            display: grid;
+            gap: 3px;
+            color: color-mix(in oklab, var(--color-base-content) 62%, transparent);
+            font-size: 0.78rem;
+        }
+
+        .spinner {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 980px) {
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 680px) {
+            .page {
+                width: min(100% - 20px, 1180px);
+                padding-top: 14px;
+            }
+
+            .topbar,
+            .panel-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .actions,
+            .filterbar {
+                justify-content: stretch;
+            }
+
+            .btn,
+            .field,
+            .select {
+                width: 100%;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            h1,
+            .subtitle {
+                white-space: normal;
+            }
+        }
+    </style>
+</head>
+<body class="light">
+    <main class="page">
+        <header class="topbar">
+            <div class="title-group">
+                <div class="title-icon" aria-hidden="true"></div>
+                <div>
+                    <h1>Plugins</h1>
+                    <div class="subtitle" id="pathSummary">Loading plugin state...</div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn" id="reloadBtn" type="button" title="Reload">
+                    <span class="icon refresh" aria-hidden="true"></span>
+                    Reload
+                </button>
+                <button class="btn primary" id="scanBtn" type="button" title="Scan plugin directory">
+                    <span class="icon refresh" aria-hidden="true"></span>
+                    Scan
+                </button>
+            </div>
+        </header>
+
+        <section class="stats" aria-label="Plugin status">
+            <div class="stat">
+                <div class="stat-label">Discovered</div>
+                <div class="stat-value" id="discoveredCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Running</div>
+                <div class="stat-value" id="runningCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Stopped</div>
+                <div class="stat-value" id="stoppedCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">WASM</div>
+                <div class="stat-value" id="wasmCount">0</div>
+            </div>
+        </section>
+
+        <section class="layout">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Catalog</div>
+                    <div class="filterbar">
+                        <input class="field" id="searchInput" type="search" placeholder="Search name or path">
+                        <select class="select" id="statusFilter" aria-label="Status filter">
+                            <option value="all">All</option>
+                            <option value="running">Running</option>
+                            <option value="stopped">Stopped</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="pluginContent">
+                    <div class="empty">Loading...</div>
+                </div>
+            </div>
+
+            <aside class="side">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Config</div>
+                    </div>
+                    <form class="form" id="configForm">
+                        <div class="form-row">
+                            <label for="pluginDir">Plugin directory</label>
+                            <input class="field mono" id="pluginDir" name="plugin_dir" autocomplete="off">
+                        </div>
+                        <div class="form-row">
+                            <label for="pluginTempDir">Temp directory</label>
+                            <input class="field mono" id="pluginTempDir" name="plugin_temp_dir" autocomplete="off">
+                        </div>
+                        <button class="btn primary" id="saveConfigBtn" type="submit">Save Config</button>
+                        <div class="message" id="messageBox" role="status"></div>
+                    </form>
+                </div>
+
+                <div class="panel" style="margin-top: 16px;">
+                    <div class="panel-header">
+                        <div class="panel-title">Runtime</div>
+                    </div>
+                    <div class="runtime-list" id="runtimeList">
+                        <div class="empty">No running plugins</div>
+                    </div>
+                </div>
+            </aside>
+        </section>
+    </main>
+
+    <script>
+        const state = {
+            discovered: [],
+            running: [],
+            pluginDir: "",
+            pluginTempDir: "",
+            busy: false
+        };
+
+        const els = {
+            pathSummary: document.getElementById("pathSummary"),
+            discoveredCount: document.getElementById("discoveredCount"),
+            runningCount: document.getElementById("runningCount"),
+            stoppedCount: document.getElementById("stoppedCount"),
+            wasmCount: document.getElementById("wasmCount"),
+            reloadBtn: document.getElementById("reloadBtn"),
+            scanBtn: document.getElementById("scanBtn"),
+            pluginContent: document.getElementById("pluginContent"),
+            runtimeList: document.getElementById("runtimeList"),
+            searchInput: document.getElementById("searchInput"),
+            statusFilter: document.getElementById("statusFilter"),
+            configForm: document.getElementById("configForm"),
+            pluginDir: document.getElementById("pluginDir"),
+            pluginTempDir: document.getElementById("pluginTempDir"),
+            saveConfigBtn: document.getElementById("saveConfigBtn"),
+            messageBox: document.getElementById("messageBox")
+        };
+
+        function escapeHTML(value) {
+            return String(value == null ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        async function api(path, options) {
+            const response = await fetch(path, Object.assign({
+                credentials: "include",
+                headers: { "Accept": "application/json" }
+            }, options || {}));
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (err) {
+                throw new Error("Invalid server response");
+            }
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || payload.error || "Request failed");
+            }
+            return payload;
+        }
+
+        function setBusy(value) {
+            state.busy = value;
+            els.reloadBtn.disabled = value;
+            els.scanBtn.disabled = value;
+            els.saveConfigBtn.disabled = value;
+            document.querySelectorAll("[data-plugin-action]").forEach((button) => {
+                const loaded = button.dataset.loaded === "true";
+                const action = button.dataset.pluginAction;
+                button.disabled = value || (action === "start" && loaded) || ((action === "stop" || action === "restart") && !loaded);
+            });
+        }
+
+        function showMessage(text, kind) {
+            els.messageBox.textContent = text || "";
+            els.messageBox.className = "message" + (text ? " show" : "") + (kind ? " " + kind : "");
+        }
+
+        function metadataEntries(metadata) {
+            if (!metadata || typeof metadata !== "object") return [];
+            return Object.entries(metadata).filter(([key, value]) => {
+                return value !== null && value !== undefined && String(value).trim() !== "" && key !== "";
+            });
+        }
+
+        function pluginDisplayName(plugin) {
+            if (plugin.metadata && plugin.metadata.DisplayName) return plugin.metadata.DisplayName;
+            if (plugin.metadata && plugin.metadata.display_name) return plugin.metadata.display_name;
+            return plugin.name;
+        }
+
+        function runningByName() {
+            const map = new Map();
+            state.running.forEach((item) => {
+                if (item && item.instance_id) map.set(item.instance_id, item);
+            });
+            return map;
+        }
+
+        function filteredPlugins() {
+            const query = els.searchInput.value.trim().toLowerCase();
+            const status = els.statusFilter.value;
+            return state.discovered.filter((plugin) => {
+                if (status === "running" && !plugin.loaded) return false;
+                if (status === "stopped" && plugin.loaded) return false;
+                if (!query) return true;
+                const haystack = [
+                    plugin.name,
+                    plugin.version,
+                    plugin.type,
+                    plugin.package_path,
+                    plugin.command,
+                    pluginDisplayName(plugin)
+                ].join(" ").toLowerCase();
+                return haystack.includes(query);
+            });
+        }
+
+        function renderStats() {
+            const running = state.discovered.filter((plugin) => plugin.loaded).length;
+            const wasm = state.discovered.filter((plugin) => plugin.type === "wasm").length;
+            els.discoveredCount.textContent = state.discovered.length;
+            els.runningCount.textContent = running;
+            els.stoppedCount.textContent = Math.max(0, state.discovered.length - running);
+            els.wasmCount.textContent = wasm;
+            els.pathSummary.textContent = state.pluginDir ? state.pluginDir : "No plugin directory configured";
+        }
+
+        function renderPlugins() {
+            const items = filteredPlugins();
+            if (!items.length) {
+                els.pluginContent.innerHTML = '<div class="empty">No plugins found</div>';
+                return;
+            }
+
+            const rows = items.map((plugin) => {
+                const entries = metadataEntries(plugin.metadata);
+                const meta = entries.length
+                    ? entries.map(([key, value]) => `<span class="badge">${escapeHTML(key)}: ${escapeHTML(value)}</span>`).join("")
+                    : '<span class="badge">No metadata</span>';
+                const loaded = Boolean(plugin.loaded);
+                return `
+                    <tr>
+                        <td>
+                            <div class="plugin-name">
+                                <div class="plugin-mark"><span class="icon puzzle" aria-hidden="true"></span></div>
+                                <div class="name-text">
+                                    <div class="name-main" title="${escapeHTML(plugin.name)}">${escapeHTML(pluginDisplayName(plugin))}</div>
+                                    <div class="name-sub">${escapeHTML(plugin.name)} v${escapeHTML(plugin.version || "-")}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="badge ${loaded ? "running" : "stopped"}">${loaded ? "Running" : "Stopped"}</span></td>
+                        <td><span class="badge">${escapeHTML(plugin.type || "-")}</span></td>
+                        <td class="mono" title="${escapeHTML(plugin.package_path)}">${escapeHTML(plugin.package_path || "-")}</td>
+                        <td><div class="metadata">${meta}</div></td>
+                        <td>
+                            <div class="action-cell">
+                                <button class="btn" type="button" data-plugin-action="start" data-plugin-name="${escapeHTML(plugin.name)}" data-loaded="${loaded ? "true" : "false"}" ${loaded ? "disabled" : ""} title="Start">
+                                    <span class="icon puzzle" aria-hidden="true"></span>
+                                    Start
+                                </button>
+                                <button class="btn" type="button" data-plugin-action="restart" data-plugin-name="${escapeHTML(plugin.name)}" data-loaded="${loaded ? "true" : "false"}" ${loaded ? "" : "disabled"} title="Restart">
+                                    <span class="icon refresh" aria-hidden="true"></span>
+                                    Restart
+                                </button>
+                                <button class="btn" type="button" data-plugin-action="stop" data-plugin-name="${escapeHTML(plugin.name)}" data-loaded="${loaded ? "true" : "false"}" ${loaded ? "" : "disabled"} title="Stop">
+                                    Stop
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
+
+            els.pluginContent.innerHTML = `
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plugin</th>
+                                <th>Status</th>
+                                <th>Type</th>
+                                <th>Package</th>
+                                <th>Metadata</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderRuntime() {
+            if (!state.running.length) {
+                els.runtimeList.innerHTML = '<div class="empty">No running plugins</div>';
+                return;
+            }
+            els.runtimeList.innerHTML = state.running.map((item) => {
+                const routes = Array.isArray(item.routes) ? item.routes.length : 0;
+                const staticMounts = Array.isArray(item.static) ? item.static.length : 0;
+                const namespaces = Array.isArray(item.namespaces) ? item.namespaces.length : 0;
+                return `
+                    <div class="runtime-item">
+                        <div class="runtime-head">
+                            <span>${escapeHTML(item.name || item.instance_id)}</span>
+                            <span class="badge running">${escapeHTML(item.type || "-")}</span>
+                        </div>
+                        <div class="runtime-meta">
+                            <div class="mono">${escapeHTML(item.path || "")}</div>
+                            <div>${routes} routes / ${staticMounts} static / ${namespaces} sockets</div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function renderAll() {
+            renderStats();
+            renderPlugins();
+            renderRuntime();
+            setBusy(state.busy);
+        }
+
+        async function loadState(showOk) {
+            const payload = await api("/api/plugins");
+            const data = payload.data || {};
+            const runMap = new Map();
+            (data.running || []).forEach((item) => {
+                if (item && item.instance_id) runMap.set(item.instance_id, item);
+            });
+            state.discovered = (data.discovered || []).map((plugin) => {
+                return Object.assign({}, plugin, { loaded: Boolean(plugin.loaded || runMap.has(plugin.name)) });
+            });
+            state.running = data.running || [];
+            state.pluginDir = data.plugin_dir || "";
+            state.pluginTempDir = data.plugin_temp_dir || "";
+            els.pluginDir.value = state.pluginDir;
+            els.pluginTempDir.value = state.pluginTempDir;
+            renderAll();
+            if (showOk) showMessage(payload.message || "Plugin state loaded", "ok");
+        }
+
+        async function scanPlugins() {
+            setBusy(true);
+            showMessage("", "");
+            try {
+                const payload = await api("/api/plugins/scan", { method: "POST" });
+                await loadState(false);
+                showMessage(payload.message || "Plugin directory scanned", "ok");
+            } catch (err) {
+                showMessage(err.message, "error");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function runPluginAction(action, name) {
+            setBusy(true);
+            showMessage("", "");
+            try {
+                const payload = await api(`/api/plugins/${action}`, {
+                    method: "POST",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ name })
+                });
+                await loadState(false);
+                showMessage(payload.message || `Plugin ${action} completed`, "ok");
+            } catch (err) {
+                showMessage(err.message, "error");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function saveConfig(event) {
+            event.preventDefault();
+            setBusy(true);
+            showMessage("", "");
+            try {
+                const payload = await api("/api/plugins/config", {
+                    method: "PUT",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        plugin_dir: els.pluginDir.value.trim(),
+                        plugin_temp_dir: els.pluginTempDir.value.trim()
+                    })
+                });
+                await loadState(false);
+                const restart = payload.data && payload.data.temp_dir_requires_restart;
+                showMessage(restart ? "Config saved. Temp directory changes need restart." : "Config saved", "ok");
+            } catch (err) {
+                showMessage(err.message, "error");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        els.reloadBtn.addEventListener("click", async () => {
+            setBusy(true);
+            showMessage("", "");
+            try {
+                await loadState(true);
+            } catch (err) {
+                showMessage(err.message, "error");
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        els.scanBtn.addEventListener("click", scanPlugins);
+        els.configForm.addEventListener("submit", saveConfig);
+        els.searchInput.addEventListener("input", renderPlugins);
+        els.statusFilter.addEventListener("change", renderPlugins);
+        els.pluginContent.addEventListener("click", (event) => {
+            const button = event.target.closest("[data-plugin-action]");
+            if (!button || button.disabled) return;
+            runPluginAction(button.dataset.pluginAction, button.dataset.pluginName);
+        });
+
+        loadState(false).catch((err) => {
+            els.pluginContent.innerHTML = '<div class="empty">Failed to load plugin state</div>';
+            showMessage(err.message, "error");
+        });
+    </script>
+</body>
+</html>

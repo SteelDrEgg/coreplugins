@@ -4,7 +4,7 @@ PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
 PLUGIN_DIR := plugins
 DIST_DIR := dist
 
-.PHONY: tools proto proto-grpc proto-wasm build run hello hello-wasm web-assets web-assets-wasm login login-wasm clean
+.PHONY: tools proto proto-grpc proto-wasm build run hello hello-wasm web-assets web-assets-wasm login login-wasm plugin-manager plugin-manager-wasm clean
 
 ## tools: install the protobuf generators used by `make proto`
 tools:
@@ -80,6 +80,20 @@ login-wasm:
 	mkdir -p $(DIST_DIR)
 	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/login.wasm -buildmode=c-shared ./coreplugins/login
 
+## plugin-manager: build and package plugin manager page into plugins/plugin-manager.plg
+plugin-manager: plugin-manager-wasm
+	rm -rf $(DIST_DIR)/plugin_manager_pkg
+	mkdir -p $(DIST_DIR)/plugin_manager_pkg/Content/pages $(PLUGIN_DIR)
+	cp $(DIST_DIR)/plugin_manager.wasm $(DIST_DIR)/plugin_manager_pkg/Content/plugin_manager.wasm
+	cp coreplugins/pluginmanager/info.yaml $(DIST_DIR)/plugin_manager_pkg/info.yaml
+	cp coreplugins/pluginmanager/pages/plugins.html $(DIST_DIR)/plugin_manager_pkg/Content/pages/plugins.html
+	cd $(DIST_DIR)/plugin_manager_pkg && zip -qr ../../$(PLUGIN_DIR)/plugin-manager.plg .
+	rm -rf $(DIST_DIR)/plugin_manager_pkg
+
+plugin-manager-wasm:
+	mkdir -p $(DIST_DIR)
+	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/plugin_manager.wasm -buildmode=c-shared ./coreplugins/pluginmanager
+
 ## clean: remove build artifacts
 clean:
-	rm -rf $(DIST_DIR) $(PLUGIN_DIR)/hello.plg $(PLUGIN_DIR)/web-assets.plg $(PLUGIN_DIR)/login.plg tmp
+	rm -rf $(DIST_DIR) $(PLUGIN_DIR)/hello.plg $(PLUGIN_DIR)/web-assets.plg $(PLUGIN_DIR)/login.plg $(PLUGIN_DIR)/plugin-manager.plg tmp

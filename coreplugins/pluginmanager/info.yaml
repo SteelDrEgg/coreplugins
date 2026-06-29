@@ -1,0 +1,7 @@
+Name: plugin-manager
+Version: 0.1.0
+Type: wasm
+ContractVersion: 1
+Command: $PLUGIN_ROOT/plugin_manager.wasm
+DisplayName: Plugin Manager
+Category: core
