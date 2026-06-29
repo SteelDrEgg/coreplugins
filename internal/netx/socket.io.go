@@ -86,7 +86,7 @@ func (self *Namespace) RegisterEvents() {
 	self.namespace.On("connection", func(clients ...any) {
 		client := clients[0].(*socket.Socket)
 		for event, f := range self.events {
-			client.On(event, func(data ...any) { f(client, data) })
+			client.On(event, func(data ...any) { f(client, data...) })
 		}
 	})
 }
@@ -94,6 +94,30 @@ func (self *Namespace) RegisterEvents() {
 // AddMiddleware adds a middleware to the namespace
 func (self *Namespace) AddMiddleware(f func(client *socket.Socket, next func(*socket.ExtendedError))) {
 	self.namespace.Use(f)
+}
+
+// OnConnection registers a connection handler for this namespace.
+func (self Namespace) OnConnection(f func(client *socket.Socket)) {
+	self.namespace.On("connection", func(clients ...any) {
+		if len(clients) == 0 {
+			return
+		}
+		client, ok := clients[0].(*socket.Socket)
+		if !ok {
+			return
+		}
+		f(client)
+	})
+}
+
+// Emit sends an event to all sockets in this namespace.
+func (self Namespace) Emit(event string, args ...any) error {
+	return self.namespace.Emit(event, args...)
+}
+
+// EmitTo sends an event to a specific room/socket target.
+func (self Namespace) EmitTo(target, event string, args ...any) error {
+	return self.namespace.To(socket.Room(target)).Emit(event, args...)
 }
 
 // GlobalServer holds the singleton Socket.IO server instance
