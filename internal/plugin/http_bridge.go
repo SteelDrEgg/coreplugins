@@ -13,66 +13,142 @@ import (
 // maxRequestBody caps the request body forwarded to plugins (8 MiB).
 const maxRequestBody = 8 << 20
 
-// registerRoute wires a plugin HTTP route into the host's ServeMux. The handler
-// serializes the request, forwards it to the plugin, and writes the reply.
-func (m *Manager) registerRoute(route HTTPRoute, conn pluginConn) error {
+// ServeHTTP dispatches requests that did not match host routes to the current
+// plugin HTTP/static route table.
+func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	route, routePattern, routeConn, routeLen := m.matchPluginRoute(r.URL.Path)
+	mount, staticHandler, staticLen := m.matchPluginStatic(r.URL.Path)
+
+	if staticHandler != nil && staticLen >= routeLen {
+		m.handlePluginStatic(mount, staticHandler, w, r)
+		return
+	}
+	if routeConn != nil {
+		m.handlePluginRoute(routePattern, route, routeConn, w, r)
+		return
+	}
+	http.NotFound(w, r)
+}
+
+// registerRoute wires a plugin HTTP route into the plugin dispatch table.
+func (m *Manager) registerRoute(owner string, route HTTPRoute, conn pluginConn) error {
 	if route.Pattern == "" {
 		return fmt.Errorf("http route pattern is required")
 	}
 
-	method := strings.ToUpper(strings.TrimSpace(route.Method))
 	pattern := route.Pattern
-
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		if method != "" && !strings.EqualFold(r.Method, method) {
-			_ = netx.WriteMethodNotAllowed(w)
-			return
-		}
-		if route.Protected {
-			if _, ok := auth.IsAuthenticated(r); !ok {
-				_ = netx.WriteUnauthorized(w, "authentication required")
-				return
-			}
-		}
-
-		body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody))
-		if err != nil {
-			_ = netx.WriteBadRequest(w, "failed to read request body")
-			return
-		}
-
-		req := &HTTPRequest{
-			RoutePattern: pattern,
-			Method:       r.Method,
-			Path:         r.URL.Path,
-			Query:        r.URL.RawQuery,
-			Headers:      flattenHeaders(r.Header),
-			Body:         body,
-			RemoteAddr:   r.RemoteAddr,
-		}
-
-		resp, err := conn.HandleHTTP(r.Context(), req)
-		if err != nil {
-			_ = netx.WriteError(w, http.StatusBadGateway, "plugin handler failed", err)
-			return
-		}
-
-		for k, v := range resp.Headers {
-			w.Header().Set(k, v)
-		}
-		status := resp.Status
-		if status == 0 {
-			status = http.StatusOK
-		}
-		w.WriteHeader(status)
-		_, _ = w.Write(resp.Body)
+	m.routeMu.Lock()
+	defer m.routeMu.Unlock()
+	if binding, ok := m.routes[pattern]; ok && binding.owner != owner {
+		return fmt.Errorf("http route pattern %q already owned by plugin %q", pattern, binding.owner)
 	}
 
-	// http.ServeMux panics on duplicate patterns; surface that as an error.
-	if err := netx.HandleSafe(m.mux, pattern, http.HandlerFunc(handler)); err != nil {
-		return err
+	m.staticMu.RLock()
+	staticBinding, staticExists := m.static[pattern]
+	m.staticMu.RUnlock()
+	if staticExists && staticBinding.owner != owner {
+		return fmt.Errorf("http route pattern %q already owned by static mount from plugin %q", pattern, staticBinding.owner)
 	}
+
+	if binding, ok := m.routes[pattern]; ok {
+		binding.owner = owner
+		binding.route = route
+		binding.conn = conn
+		return nil
+	}
+
+	m.routes[pattern] = &httpRouteBinding{owner: owner, route: route, conn: conn}
 	return nil
+}
+
+func (m *Manager) unregisterRoutes(owner string) {
+	m.routeMu.Lock()
+	defer m.routeMu.Unlock()
+	for pattern, binding := range m.routes {
+		if binding.owner == owner {
+			delete(m.routes, pattern)
+		}
+	}
+}
+
+func (m *Manager) matchPluginRoute(path string) (HTTPRoute, string, pluginConn, int) {
+	m.routeMu.RLock()
+	defer m.routeMu.RUnlock()
+
+	var best *httpRouteBinding
+	bestPattern := ""
+	for pattern, binding := range m.routes {
+		if binding == nil || binding.conn == nil {
+			continue
+		}
+		if !pathMatchesPattern(path, pattern) {
+			continue
+		}
+		if len(pattern) > len(bestPattern) {
+			best = binding
+			bestPattern = pattern
+		}
+	}
+	if best == nil {
+		return HTTPRoute{}, "", nil, -1
+	}
+	return best.route, bestPattern, best.conn, len(bestPattern)
+}
+
+func (m *Manager) handlePluginRoute(pattern string, route HTTPRoute, conn pluginConn, w http.ResponseWriter, r *http.Request) {
+	method := strings.ToUpper(strings.TrimSpace(route.Method))
+	if method != "" && !strings.EqualFold(r.Method, method) {
+		_ = netx.WriteMethodNotAllowed(w)
+		return
+	}
+	if route.Protected {
+		if _, ok := auth.IsAuthenticated(r); !ok {
+			_ = netx.WriteUnauthorized(w, "authentication required")
+			return
+		}
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody))
+	if err != nil {
+		_ = netx.WriteBadRequest(w, "failed to read request body")
+		return
+	}
+
+	req := &HTTPRequest{
+		RoutePattern: pattern,
+		Method:       r.Method,
+		Path:         r.URL.Path,
+		Query:        r.URL.RawQuery,
+		Headers:      flattenHeaders(r.Header),
+		Body:         body,
+		RemoteAddr:   r.RemoteAddr,
+	}
+
+	resp, err := conn.HandleHTTP(r.Context(), req)
+	if err != nil {
+		_ = netx.WriteError(w, http.StatusBadGateway, "plugin handler failed", err)
+		return
+	}
+
+	for k, v := range resp.Headers {
+		w.Header().Set(k, v)
+	}
+	status := resp.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	w.WriteHeader(status)
+	_, _ = w.Write(resp.Body)
+}
+
+func pathMatchesPattern(path, pattern string) bool {
+	if pattern == "" {
+		return false
+	}
+	if strings.HasSuffix(pattern, "/") {
+		return strings.HasPrefix(path, pattern)
+	}
+	return path == pattern
 }
 
 func flattenHeaders(h http.Header) map[string]string {

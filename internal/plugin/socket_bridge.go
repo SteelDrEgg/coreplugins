@@ -20,8 +20,14 @@ type socketBridge struct {
 	server *netx.Socket
 	log    *slog.Logger
 
-	mu     sync.RWMutex
-	owners map[string]pluginConn // namespace -> owning plugin
+	mu         sync.RWMutex
+	owners     map[string]socketOwner // namespace -> owning plugin
+	registered map[string]struct{}    // namespace -> connection handler installed
+}
+
+type socketOwner struct {
+	pluginName string
+	conn       pluginConn
 }
 
 func newSocketBridge(server *netx.Socket, log *slog.Logger) *socketBridge {
@@ -29,24 +35,31 @@ func newSocketBridge(server *netx.Socket, log *slog.Logger) *socketBridge {
 		log = slog.Default()
 	}
 	return &socketBridge{
-		server: server,
-		log:    log,
-		owners: make(map[string]pluginConn),
+		server:     server,
+		log:        log,
+		owners:     make(map[string]socketOwner),
+		registered: make(map[string]struct{}),
 	}
 }
 
 // register attaches a plugin's namespace and its event handlers.
-func (b *socketBridge) register(decl SocketNamespaceDecl, conn pluginConn) error {
+func (b *socketBridge) register(pluginName string, decl SocketNamespaceDecl, conn pluginConn) error {
 	if decl.Name == "" {
 		return fmt.Errorf("socket namespace name is required")
 	}
 
 	b.mu.Lock()
-	if _, exists := b.owners[decl.Name]; exists {
+	if owner, exists := b.owners[decl.Name]; exists && owner.pluginName != "" && owner.pluginName != pluginName {
 		b.mu.Unlock()
-		return fmt.Errorf("socket namespace %q already registered", decl.Name)
+		return fmt.Errorf("socket namespace %q already owned by plugin %q", decl.Name, owner.pluginName)
 	}
-	b.owners[decl.Name] = conn
+	_, alreadyRegistered := b.registered[decl.Name]
+	b.owners[decl.Name] = socketOwner{pluginName: pluginName, conn: conn}
+	if alreadyRegistered {
+		b.mu.Unlock()
+		return nil
+	}
+	b.registered[decl.Name] = struct{}{}
 	b.mu.Unlock()
 
 	b.server.AddNamespace(decl.Name)
@@ -85,6 +98,16 @@ func (b *socketBridge) register(decl SocketNamespaceDecl, conn pluginConn) error
 	return nil
 }
 
+func (b *socketBridge) unregisterPlugin(pluginName string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for ns, owner := range b.owners {
+		if owner.pluginName == pluginName {
+			b.owners[ns] = socketOwner{}
+		}
+	}
+}
+
 func isSocketAuthenticated(client *socket.Socket) bool {
 	allowed := false
 	auth.RequireAuthSocketIO(client, func(err *socket.ExtendedError) {
@@ -95,8 +118,9 @@ func isSocketAuthenticated(client *socket.Socket) bool {
 
 func (b *socketBridge) handle(ns, event string, client *socket.Socket, data []any) {
 	b.mu.RLock()
-	conn := b.owners[ns]
+	owner := b.owners[ns]
 	b.mu.RUnlock()
+	conn := owner.conn
 	if conn == nil {
 		return
 	}
