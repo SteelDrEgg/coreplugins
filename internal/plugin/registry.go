@@ -18,6 +18,7 @@ type PluginRecord struct {
 	Type       string                `json:"type"` // wasm | grpc
 	Path       string                `json:"path"`
 	Routes     []HTTPRoute           `json:"routes"`
+	Static     []StaticMount         `json:"static"`
 	Namespaces []SocketNamespaceDecl `json:"namespaces"`
 }
 

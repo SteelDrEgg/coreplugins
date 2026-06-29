@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"minimalpanel/internal/netx"
-
 	"github.com/zishang520/socket.io/servers/socket/v3"
+	"minimalpanel/internal/auth"
+	"minimalpanel/internal/netx"
 )
 
 // socketBridge wires plugin-declared Socket.IO namespaces and events into the
@@ -50,29 +50,47 @@ func (b *socketBridge) register(decl SocketNamespaceDecl, conn pluginConn) error
 	b.mu.Unlock()
 
 	b.server.AddNamespace(decl.Name)
-	raw := b.server.GetNamespace(decl.Name).Raw()
-	if raw == nil {
+	ns := b.server.GetNamespace(decl.Name)
+	if ns.Raw() == nil {
 		return fmt.Errorf("failed to create socket namespace %q", decl.Name)
+	}
+	if decl.Protected {
+		ns.AddMiddleware(auth.RequireAuthSocketIO)
 	}
 
 	events := append([]string(nil), decl.Events...)
+	protectedEvents := make(map[string]struct{}, len(decl.ProtectedEvents))
+	for _, event := range decl.ProtectedEvents {
+		protectedEvents[event] = struct{}{}
+	}
 	nsName := decl.Name
-	raw.On("connection", func(clients ...any) {
-		if len(clients) == 0 {
-			return
-		}
-		client, ok := clients[0].(*socket.Socket)
-		if !ok {
-			return
-		}
+	ns.OnConnection(func(client *socket.Socket) {
 		for _, ev := range events {
 			ev := ev
 			client.On(ev, func(data ...any) {
+				if _, isProtected := protectedEvents[ev]; isProtected {
+					if !isSocketAuthenticated(client) {
+						_ = client.Emit("error", map[string]any{
+							"code":    "UNAUTHORIZED",
+							"message": "authentication required",
+							"event":   ev,
+						})
+						return
+					}
+				}
 				b.handle(nsName, ev, client, data)
 			})
 		}
 	})
 	return nil
+}
+
+func isSocketAuthenticated(client *socket.Socket) bool {
+	allowed := false
+	auth.RequireAuthSocketIO(client, func(err *socket.ExtendedError) {
+		allowed = err == nil
+	})
+	return allowed
 }
 
 func (b *socketBridge) handle(ns, event string, client *socket.Socket, data []any) {
@@ -109,8 +127,7 @@ func (b *socketBridge) handle(ns, event string, client *socket.Socket, data []an
 // Emit implements the Emitter interface used by HostAPI.
 func (b *socketBridge) Emit(instr EmitInstruction) error {
 	ns := b.server.GetNamespace(instr.Namespace)
-	raw := ns.Raw()
-	if raw == nil {
+	if ns.Raw() == nil {
 		return fmt.Errorf("unknown socket namespace %q", instr.Namespace)
 	}
 
@@ -120,9 +137,9 @@ func (b *socketBridge) Emit(instr EmitInstruction) error {
 	}
 
 	if instr.Target != "" {
-		return raw.To(socket.Room(instr.Target)).Emit(instr.Event, args...)
+		return ns.EmitTo(instr.Target, instr.Event, args...)
 	}
-	return raw.Emit(instr.Event, args...)
+	return ns.Emit(instr.Event, args...)
 }
 
 // decodeEmitArgs interprets the payload as a JSON array of emit arguments. An

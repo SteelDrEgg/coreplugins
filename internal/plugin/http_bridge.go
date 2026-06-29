@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"minimalpanel/internal/auth"
+	"minimalpanel/internal/netx"
 )
 
 // maxRequestBody caps the request body forwarded to plugins (8 MiB).
@@ -22,13 +25,19 @@ func (m *Manager) registerRoute(route HTTPRoute, conn pluginConn) error {
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		if method != "" && !strings.EqualFold(r.Method, method) {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			_ = netx.WriteMethodNotAllowed(w)
 			return
+		}
+		if route.Protected {
+			if _, ok := auth.IsAuthenticated(r); !ok {
+				_ = netx.WriteUnauthorized(w, "authentication required")
+				return
+			}
 		}
 
 		body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody))
 		if err != nil {
-			http.Error(w, "failed to read request body", http.StatusBadRequest)
+			_ = netx.WriteBadRequest(w, "failed to read request body")
 			return
 		}
 
@@ -44,7 +53,7 @@ func (m *Manager) registerRoute(route HTTPRoute, conn pluginConn) error {
 
 		resp, err := conn.HandleHTTP(r.Context(), req)
 		if err != nil {
-			http.Error(w, "plugin error: "+err.Error(), http.StatusBadGateway)
+			_ = netx.WriteError(w, http.StatusBadGateway, "plugin handler failed", err)
 			return
 		}
 
@@ -60,7 +69,7 @@ func (m *Manager) registerRoute(route HTTPRoute, conn pluginConn) error {
 	}
 
 	// http.ServeMux panics on duplicate patterns; surface that as an error.
-	if err := safeHandle(m.mux, pattern, http.HandlerFunc(handler)); err != nil {
+	if err := netx.HandleSafe(m.mux, pattern, http.HandlerFunc(handler)); err != nil {
 		return err
 	}
 	return nil
@@ -74,14 +83,4 @@ func flattenHeaders(h http.Header) map[string]string {
 		}
 	}
 	return out
-}
-
-func safeHandle(mux *http.ServeMux, pattern string, handler http.Handler) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("register http pattern %q: %v", pattern, r)
-		}
-	}()
-	mux.Handle(pattern, handler)
-	return nil
 }

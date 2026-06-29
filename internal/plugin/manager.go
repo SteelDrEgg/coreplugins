@@ -1,13 +1,17 @@
 package plugin
 
 import (
+	"archive/zip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	grpcpb "minimalpanel/pluginsdk/grpc/proto"
@@ -17,6 +21,7 @@ import (
 
 	goplugin "github.com/SteelDrEgg/go-plugin"
 	"google.golang.org/grpc"
+	"gopkg.in/yaml.v3"
 )
 
 // handshake is shared with gRPC plugins. Plugins must use the same values.
@@ -36,6 +41,9 @@ type Options struct {
 	Socket *netx.Socket
 	// Logger is used for host and plugin logs. Optional.
 	Logger *slog.Logger
+	// ParamsResolver returns config params passed to a plugin at registration,
+	// keyed by plugin name. Optional.
+	ParamsResolver func(name string) map[string]string
 }
 
 // Manager loads plugins and exposes the shared host API to them.
@@ -51,8 +59,13 @@ type Manager struct {
 	hostGRPC     *grpcHostServer
 	hostGRPCAddr string
 
+	paramsResolver func(name string) map[string]string
+
 	mu      sync.Mutex
 	plugins map[string]*loadedPlugin
+
+	scanMu     sync.RWMutex
+	discovered map[string]DiscoveredPlugin // plugin name -> descriptor
 }
 
 type loadedPlugin struct {
@@ -60,6 +73,18 @@ type loadedPlugin struct {
 	conn      pluginConn
 	record    *PluginRecord
 	grpcToken string
+}
+
+// DiscoveredPlugin is metadata scanned from a .plg package's info.yaml without
+// loading the plugin runtime.
+type DiscoveredPlugin struct {
+	Name            string
+	Version         string
+	Type            string
+	ContractVersion int
+	Command         string
+	Metadata        map[string]any
+	PackagePath     string
 }
 
 // NewManager builds a plugin manager and starts the gRPC host callback server.
@@ -83,10 +108,12 @@ func NewManager(opts Options) (*Manager, error) {
 	}
 
 	m := &Manager{
-		kv:      NewKV(),
-		mux:     opts.Mux,
-		log:     log,
-		plugins: make(map[string]*loadedPlugin),
+		kv:             NewKV(),
+		mux:            opts.Mux,
+		log:            log,
+		plugins:        make(map[string]*loadedPlugin),
+		discovered:     make(map[string]DiscoveredPlugin),
+		paramsResolver: opts.ParamsResolver,
 	}
 	m.registry = NewRegistry(m.kv)
 	m.socket = newSocketBridge(opts.Socket, log)
@@ -139,8 +166,9 @@ func (m *Manager) wasmLoader(ctx context.Context, modulePath string, _ goplugin.
 	return client, func(ctx context.Context) error { return client.Close(ctx) }, nil
 }
 
-// LoadDir loads every *.plg package found in dir (non-recursively).
-func (m *Manager) LoadDir(dir string) error {
+// ScanDir scans *.plg packages in dir (non-recursively), reads info.yaml and
+// caches metadata without starting plugins.
+func (m *Manager) ScanDir(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -159,9 +187,75 @@ func (m *Manager) LoadDir(dir string) error {
 	}
 	sort.Strings(paths)
 
+	next := make(map[string]DiscoveredPlugin, len(paths))
 	for _, p := range paths {
-		if _, err := m.Load(p); err != nil {
-			m.log.Error("failed to load plugin", "path", p, "err", err)
+		info, err := readPluginInfo(p)
+		if err != nil {
+			m.log.Error("failed to scan plugin package", "path", p, "err", err)
+			continue
+		}
+		if _, exists := next[info.Name]; exists {
+			m.log.Error("duplicate plugin name found in packages; keeping first", "name", info.Name, "path", p)
+			continue
+		}
+		next[info.Name] = info
+	}
+
+	m.scanMu.Lock()
+	prev := m.discovered
+	m.discovered = next
+	m.scanMu.Unlock()
+
+	for name := range prev {
+		if _, ok := next[name]; !ok {
+			m.kv.SystemDelete(SysNamespace, registryKVPrefix+"catalog/"+name)
+		}
+	}
+	for _, info := range next {
+		m.publishDiscovered(info)
+	}
+	return nil
+}
+
+// Discovered returns scanned plugin metadata snapshot.
+func (m *Manager) Discovered() []DiscoveredPlugin {
+	m.scanMu.RLock()
+	defer m.scanMu.RUnlock()
+	out := make([]DiscoveredPlugin, 0, len(m.discovered))
+	for _, d := range m.discovered {
+		out = append(out, d)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// StartByName starts a previously scanned plugin by name.
+func (m *Manager) StartByName(name string) (*loadedPlugin, error) {
+	m.scanMu.RLock()
+	d, ok := m.discovered[name]
+	m.scanMu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("plugin %q not found in scan results", name)
+	}
+	return m.Load(d.PackagePath)
+}
+
+// Start starts a previously scanned plugin by name.
+func (m *Manager) Start(name string) error {
+	_, err := m.StartByName(name)
+	return err
+}
+
+// StartMatching starts scanned plugins where shouldStart returns true.
+func (m *Manager) StartMatching(shouldStart func(DiscoveredPlugin) bool) error {
+	discovered := m.Discovered()
+	for _, d := range discovered {
+		if shouldStart != nil && !shouldStart(d) {
+			m.log.Info("plugin auto-start disabled by config", "name", d.Name)
+			continue
+		}
+		if _, err := m.StartByName(d.Name); err != nil {
+			m.log.Error("failed to start plugin", "name", d.Name, "path", d.PackagePath, "err", err)
 		}
 	}
 	return nil
@@ -188,6 +282,9 @@ func (m *Manager) Load(path string) (*loadedPlugin, error) {
 	}
 
 	req := RegisterRequest{InstanceID: instanceID}
+	if m.paramsResolver != nil {
+		req.Params = m.paramsResolver(instanceID)
+	}
 	var grpcToken string
 	if info.Type == "grpc" {
 		token, err := m.hostGRPC.issueToken(instanceID)
@@ -216,12 +313,18 @@ func (m *Manager) Load(path string) (*loadedPlugin, error) {
 		Type:       info.Type,
 		Path:       path,
 		Routes:     reg.Routes,
+		Static:     reg.Static,
 		Namespaces: reg.Namespaces,
 	}
 
 	for _, route := range reg.Routes {
 		if err := m.registerRoute(route, conn); err != nil {
 			m.log.Error("failed to register plugin route", "plugin", instanceID, "pattern", route.Pattern, "err", err)
+		}
+	}
+	for _, mount := range reg.Static {
+		if err := m.registerStatic(handle.RootPath(), mount); err != nil {
+			m.log.Error("failed to register plugin static mount", "plugin", instanceID, "prefix", mount.Prefix, "dir", mount.Directory, "err", err)
 		}
 	}
 	for _, ns := range reg.Namespaces {
@@ -237,8 +340,81 @@ func (m *Manager) Load(path string) (*loadedPlugin, error) {
 	m.registry.Add(record)
 
 	m.log.Info("loaded plugin", "name", reg.Name, "version", reg.Version, "type", info.Type,
-		"routes", len(reg.Routes), "namespaces", len(reg.Namespaces))
+		"routes", len(reg.Routes), "static_mounts", len(reg.Static), "namespaces", len(reg.Namespaces))
 	return lp, nil
+}
+
+func readPluginInfo(path string) (DiscoveredPlugin, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return DiscoveredPlugin{}, fmt.Errorf("open plugin package: %w", err)
+	}
+	defer f.Close()
+
+	st, err := f.Stat()
+	if err != nil {
+		return DiscoveredPlugin{}, fmt.Errorf("stat plugin package: %w", err)
+	}
+
+	zr, err := zip.NewReader(f, st.Size())
+	if err != nil {
+		return DiscoveredPlugin{}, fmt.Errorf("read zip plugin package: %w", err)
+	}
+
+	var info goplugin.Info
+	for _, zf := range zr.File {
+		if filepath.Clean(zf.Name) != "info.yaml" {
+			continue
+		}
+		r, err := zf.Open()
+		if err != nil {
+			return DiscoveredPlugin{}, fmt.Errorf("open info.yaml: %w", err)
+		}
+		b, err := io.ReadAll(r)
+		_ = r.Close()
+		if err != nil {
+			return DiscoveredPlugin{}, fmt.Errorf("read info.yaml: %w", err)
+		}
+		if err := yaml.Unmarshal(b, &info); err != nil {
+			return DiscoveredPlugin{}, fmt.Errorf("parse info.yaml: %w", err)
+		}
+		break
+	}
+
+	if strings.TrimSpace(info.Name) == "" {
+		return DiscoveredPlugin{}, fmt.Errorf("info.yaml Name is required")
+	}
+	if strings.TrimSpace(info.Version) == "" {
+		return DiscoveredPlugin{}, fmt.Errorf("info.yaml Version is required")
+	}
+	if info.Type != "grpc" && info.Type != "wasm" {
+		return DiscoveredPlugin{}, fmt.Errorf("info.yaml Type must be grpc or wasm")
+	}
+	if info.ContractVersion == 0 {
+		return DiscoveredPlugin{}, fmt.Errorf("info.yaml ContractVersion is required")
+	}
+	if strings.TrimSpace(info.Command) == "" {
+		return DiscoveredPlugin{}, fmt.Errorf("info.yaml Command is required")
+	}
+
+	return DiscoveredPlugin{
+		Name:            info.Name,
+		Version:         info.Version,
+		Type:            info.Type,
+		ContractVersion: info.ContractVersion,
+		Command:         info.Command,
+		Metadata:        info.Metadata,
+		PackagePath:     path,
+	}, nil
+}
+
+func (m *Manager) publishDiscovered(d DiscoveredPlugin) {
+	// Keep scanned info available through read-only sys KV.
+	b, err := json.Marshal(d)
+	if err != nil {
+		return
+	}
+	m.kv.SystemSet(SysNamespace, registryKVPrefix+"catalog/"+d.Name, b)
 }
 
 func (m *Manager) connFor(pluginType string, client any) (pluginConn, error) {

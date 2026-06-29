@@ -155,16 +155,33 @@ func (c grpcConn) Register(ctx context.Context, req RegisterRequest) (*RegisterR
 		InstanceId:        req.InstanceID,
 		HostCallbackAddr:  req.HostCallbackAddr,
 		HostCallbackToken: req.HostCallbackToken,
+		Params:            req.Params,
 	})
 	if err != nil {
 		return nil, err
 	}
 	res := &RegisterResult{Name: reply.GetName(), Version: reply.GetVersion()}
 	for _, r := range reply.GetHttpRoutes() {
-		res.Routes = append(res.Routes, HTTPRoute{Method: r.GetMethod(), Pattern: r.GetPattern()})
+		res.Routes = append(res.Routes, HTTPRoute{
+			Method:    r.GetMethod(),
+			Pattern:   r.GetPattern(),
+			Protected: r.GetProtected(),
+		})
+	}
+	for _, s := range reply.GetStaticMounts() {
+		res.Static = append(res.Static, StaticMount{
+			Prefix:    s.GetPrefix(),
+			Directory: s.GetDirectory(),
+			Protected: s.GetProtected(),
+		})
 	}
 	for _, ns := range reply.GetSocketNamespaces() {
-		res.Namespaces = append(res.Namespaces, SocketNamespaceDecl{Name: ns.GetName(), Events: ns.GetEvents()})
+		res.Namespaces = append(res.Namespaces, SocketNamespaceDecl{
+			Name:            ns.GetName(),
+			Events:          ns.GetEvents(),
+			Protected:       ns.GetProtected(),
+			ProtectedEvents: ns.GetProtectedEvents(),
+		})
 	}
 	return res, nil
 }

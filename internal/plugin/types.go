@@ -13,15 +13,25 @@ import "context"
 
 // HTTPRoute is a single HTTP route a plugin handles.
 type HTTPRoute struct {
-	Method  string `json:"method"`  // GET/POST/...; empty means any method
-	Pattern string `json:"pattern"` // net/http ServeMux pattern
+	Method    string `json:"method"`    // GET/POST/...; empty means any method
+	Pattern   string `json:"pattern"`   // net/http ServeMux pattern
+	Protected bool   `json:"protected"` // requires host authentication when true
+}
+
+// StaticMount declares a URL prefix to host static files from a directory.
+type StaticMount struct {
+	Prefix    string `json:"prefix"`    // URL path; use trailing '/' for directories, exact path for files
+	Directory string `json:"directory"` // host path; can be a directory or a single file
+	Protected bool   `json:"protected"` // requires host authentication when true
 }
 
 // SocketNamespaceDecl declares a Socket.IO namespace and the events a plugin
 // handles within it.
 type SocketNamespaceDecl struct {
-	Name   string   `json:"name"`
-	Events []string `json:"events"`
+	Name            string   `json:"name"`
+	Events          []string `json:"events"`
+	Protected       bool     `json:"protected"`        // requires host authentication when true
+	ProtectedEvents []string `json:"protected_events"` // requires auth for matching events
 }
 
 // RegisterResult is the backend-agnostic result of registering a plugin.
@@ -29,14 +39,16 @@ type RegisterResult struct {
 	Name       string
 	Version    string
 	Routes     []HTTPRoute
+	Static     []StaticMount
 	Namespaces []SocketNamespaceDecl
 }
 
 // RegisterRequest carries host-provided data to a plugin at registration.
 type RegisterRequest struct {
 	InstanceID        string
-	HostCallbackAddr  string // gRPC plugins dial this to reach the host callback API
-	HostCallbackToken string // auth token for the host callback API
+	HostCallbackAddr  string            // gRPC plugins dial this to reach the host callback API
+	HostCallbackToken string            // auth token for the host callback API
+	Params            map[string]string // config params from [Plugins.<name>.params]
 }
 
 // HTTPRequest is a serialized HTTP request forwarded to a plugin.
