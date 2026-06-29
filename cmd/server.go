@@ -45,6 +45,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer pm.Close()
+	web.StartPlugin(mux, pm)
 
 	if err := pm.ScanDir(cfg.PluginDir); err != nil {
 		logger.Error("failed to scan plugin directory", "dir", cfg.PluginDir, "err", err)
