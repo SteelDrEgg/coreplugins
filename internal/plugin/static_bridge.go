@@ -12,7 +12,8 @@ import (
 )
 
 // registerStatic wires a plugin-declared static directory or file into the
-// plugin dispatch table.
+// plugin dispatch table. Directory mounts are normalized to subtree patterns
+// ending in "/", while file mounts remain exact patterns.
 func (m *Manager) registerStatic(owner, pluginRoot string, mount StaticMount) error {
 	prefix := strings.TrimSpace(mount.Prefix)
 	if prefix == "" {
@@ -90,6 +91,9 @@ func (m *Manager) unregisterStatic(owner string) {
 	}
 }
 
+// matchPluginStatic returns the longest static mount pattern that matches path.
+// The returned handler already knows whether it should serve a file or strip a
+// directory prefix.
 func (m *Manager) matchPluginStatic(path string) (StaticMount, http.Handler, int) {
 	m.staticMu.RLock()
 	defer m.staticMu.RUnlock()
@@ -114,6 +118,8 @@ func (m *Manager) matchPluginStatic(path string) (StaticMount, http.Handler, int
 	return best.mount, best.handler, len(bestPattern)
 }
 
+// handlePluginStatic applies mount-level auth and delegates file serving to the
+// prepared static handler.
 func (m *Manager) handlePluginStatic(mount StaticMount, handler http.Handler, w http.ResponseWriter, r *http.Request) {
 	if mount.Protected {
 		if _, ok := auth.IsAuthenticated(r); !ok {

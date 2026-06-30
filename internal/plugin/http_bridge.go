@@ -14,7 +14,9 @@ import (
 const maxRequestBody = 8 << 20
 
 // ServeHTTP dispatches requests that did not match host routes to the current
-// plugin HTTP/static route table.
+// plugin HTTP/static route table. It chooses the longest matching plugin
+// pattern; static mounts win ties so an exact static file mount can serve its
+// asset without being shadowed by an HTTP route of the same length.
 func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, routePattern, routeConn, routeLen := m.matchPluginRoute(r.URL.Path)
 	mount, staticHandler, staticLen := m.matchPluginStatic(r.URL.Path)
@@ -30,7 +32,9 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-// registerRoute wires a plugin HTTP route into the plugin dispatch table.
+// registerRoute wires a plugin HTTP route into the plugin dispatch table. Route
+// ownership is exclusive while the owning plugin is loaded; Stop removes the
+// entry so another plugin can claim the same pattern later.
 func (m *Manager) registerRoute(owner string, route HTTPRoute, conn pluginConn) error {
 	if route.Pattern == "" {
 		return fmt.Errorf("http route pattern is required")
@@ -71,6 +75,9 @@ func (m *Manager) unregisterRoutes(owner string) {
 	}
 }
 
+// matchPluginRoute returns the longest HTTP route pattern that matches path.
+// Patterns ending in "/" are prefix matches; all other patterns are exact
+// matches.
 func (m *Manager) matchPluginRoute(path string) (HTTPRoute, string, pluginConn, int) {
 	m.routeMu.RLock()
 	defer m.routeMu.RUnlock()
@@ -95,6 +102,8 @@ func (m *Manager) matchPluginRoute(path string) (HTTPRoute, string, pluginConn, 
 	return best.route, bestPattern, best.conn, len(bestPattern)
 }
 
+// handlePluginRoute serializes an HTTP request into the plugin contract, calls
+// the owning plugin, and writes the plugin's response back to the client.
 func (m *Manager) handlePluginRoute(pattern string, route HTTPRoute, conn pluginConn, w http.ResponseWriter, r *http.Request) {
 	method := strings.ToUpper(strings.TrimSpace(route.Method))
 	if method != "" && !strings.EqualFold(r.Method, method) {
@@ -141,6 +150,9 @@ func (m *Manager) handlePluginRoute(pattern string, route HTTPRoute, conn plugin
 	_, _ = w.Write(resp.Body)
 }
 
+// pathMatchesPattern implements the plugin dispatcher's small matching model:
+// trailing-slash patterns are subtree prefixes, and every other pattern is an
+// exact match.
 func pathMatchesPattern(path, pattern string) bool {
 	if pattern == "" {
 		return false

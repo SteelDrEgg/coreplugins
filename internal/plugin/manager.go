@@ -35,7 +35,8 @@ var handshake = goplugin.HandshakeConfig{
 type Options struct {
 	// TempDir is where plugin packages are extracted. Required.
 	TempDir string
-	// Mux receives plugin HTTP routes. Required.
+	// Mux receives the plugin HTTP dispatcher fallback. Host routes registered
+	// on more specific patterns keep precedence over plugin routes.
 	Mux *http.ServeMux
 	// Socket is the global Socket.IO server plugins attach namespaces to. Required.
 	Socket *netx.Socket
@@ -46,7 +47,8 @@ type Options struct {
 	ParamsResolver func(name string) map[string]string
 }
 
-// Manager loads plugins and exposes the shared host API to them.
+// Manager loads plugins, exposes the shared host API to them, and owns the
+// in-memory routing tables used by plugin HTTP/static dispatch.
 type Manager struct {
 	inner    *goplugin.Manager
 	kv       *KV
@@ -81,12 +83,22 @@ type loadedPlugin struct {
 	grpcToken string
 }
 
+// httpRouteBinding is a live HTTP route owned by a loaded plugin.
+//
+// The host mux does not receive one handler per plugin route. Instead, all
+// plugin HTTP requests enter Manager.ServeHTTP and are matched against this
+// table, which makes stop/restart remove and re-add routes without rebuilding
+// the host mux.
 type httpRouteBinding struct {
 	owner string
 	route HTTPRoute
 	conn  pluginConn
 }
 
+// staticMountBinding is a live static file mount owned by a loaded plugin.
+//
+// Directory mounts are stored with a trailing-slash pattern and matched by
+// prefix; file mounts are stored as exact patterns.
 type staticMountBinding struct {
 	owner   string
 	mount   StaticMount
@@ -105,7 +117,8 @@ type DiscoveredPlugin struct {
 	PackagePath     string
 }
 
-// NewManager builds a plugin manager and starts the gRPC host callback server.
+// NewManager builds a plugin manager, registers the plugin HTTP dispatcher on
+// the host mux, and starts the gRPC host callback server.
 func NewManager(opts Options) (*Manager, error) {
 	if opts.TempDir == "" {
 		return nil, fmt.Errorf("TempDir is required")
@@ -270,9 +283,8 @@ func (m *Manager) Start(name string) error {
 	return err
 }
 
-// Stop unloads a running plugin by instance/name and releases its dynamic
-// runtime bindings. HTTP patterns remain registered with the host mux, but
-// their proxy handlers stop forwarding to the unloaded plugin.
+// Stop unloads a running plugin by instance/name and removes its HTTP, static,
+// Socket.IO, registry and callback-token bindings.
 func (m *Manager) Stop(name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {

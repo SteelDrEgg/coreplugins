@@ -13,15 +13,19 @@ import (
 	"strings"
 )
 
+// pluginActionRequest is the common JSON payload for start/stop/restart.
 type pluginActionRequest struct {
 	Name string `json:"name"`
 }
 
+// pluginConfigRequest carries plugin directory settings from the management UI.
 type pluginConfigRequest struct {
 	PluginDir     string `json:"plugin_dir"`
 	PluginTempDir string `json:"plugin_temp_dir"`
 }
 
+// pluginView is the catalog row returned to the management UI. It combines
+// scanned package metadata with the current runtime loaded flag.
 type pluginView struct {
 	Name            string         `json:"name"`
 	Version         string         `json:"version"`

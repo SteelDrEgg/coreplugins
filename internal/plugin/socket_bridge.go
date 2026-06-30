@@ -43,6 +43,11 @@ func newSocketBridge(server *netx.Socket, log *slog.Logger) *socketBridge {
 }
 
 // register attaches a plugin's namespace and its event handlers.
+//
+// Socket.IO namespaces cannot be cheaply removed from the underlying server, so
+// the connection handler is installed once per namespace and each event lookup
+// resolves the current owner from b.owners. Stop clears that owner; Restart
+// replaces it.
 func (b *socketBridge) register(pluginName string, decl SocketNamespaceDecl, conn pluginConn) error {
 	if decl.Name == "" {
 		return fmt.Errorf("socket namespace name is required")
@@ -98,6 +103,9 @@ func (b *socketBridge) register(pluginName string, decl SocketNamespaceDecl, con
 	return nil
 }
 
+// unregisterPlugin releases all namespace ownership held by pluginName. The
+// underlying Socket.IO namespace and connection handler remain installed, but
+// events become no-ops until a plugin registers the namespace again.
 func (b *socketBridge) unregisterPlugin(pluginName string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
