@@ -4,6 +4,7 @@
 <head>
     <title>Terminal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/assets/css/scheme.css">
     <link rel="stylesheet" href="/assets/terminal/xterm.min.css" />
     <style>
         :root {
@@ -160,7 +161,7 @@
 
         .modal-content {
             background: var(--color-base-100);
-            border-radius: 0.5rem;
+            border-radius: var(--radius-box);
             padding: 1.5rem;
             width: 90%;
             max-width: 400px;
@@ -216,7 +217,7 @@
             width: 100%;
             padding: 0.75rem;
             border: 1px solid var(--color-base-300);
-            border-radius: 0.375rem;
+            border-radius: var(--radius-field);
             font-size: 0.875rem;
             background: var(--color-base-100);
             color: var(--color-base-content);
@@ -231,7 +232,7 @@
             display: flex;
             margin-bottom: 1rem;
             border: 1px solid var(--color-base-300);
-            border-radius: 0.375rem;
+            border-radius: var(--radius-box);
             overflow: hidden;
         }
 
@@ -266,7 +267,7 @@
             background: var(--color-primary);
             color: white;
             border: none;
-            border-radius: 0.375rem;
+            border-radius: var(--radius-box);
             font-size: 0.875rem;
             cursor: pointer;
             margin-top: 1rem;
