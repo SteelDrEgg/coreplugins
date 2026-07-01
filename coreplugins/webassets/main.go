@@ -67,6 +67,6 @@ func (webAssetsPlugin) HandleSocketEvent(_ context.Context, _ *panel.SocketEvent
 	return &panel.SocketEventReply{}, nil
 }
 
-func (loginPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
+func (webAssetsPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
 	return &panel.PluginMessageReply{}, nil
 }
