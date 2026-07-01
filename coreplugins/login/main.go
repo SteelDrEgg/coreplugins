@@ -40,3 +40,7 @@ func (loginPlugin) HandleHTTP(_ context.Context, _ *panel.HTTPRequest) (*panel.H
 func (loginPlugin) HandleSocketEvent(_ context.Context, _ *panel.SocketEvent) (*panel.SocketEventReply, error) {
 	return &panel.SocketEventReply{}, nil
 }
+
+func (loginPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
+	return &panel.PluginMessageReply{}, nil
+}

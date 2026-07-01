@@ -66,3 +66,7 @@ func (webAssetsPlugin) HandleHTTP(_ context.Context, _ *panel.HTTPRequest) (*pan
 func (webAssetsPlugin) HandleSocketEvent(_ context.Context, _ *panel.SocketEvent) (*panel.SocketEventReply, error) {
 	return &panel.SocketEventReply{}, nil
 }
+
+func (loginPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
+	return &panel.PluginMessageReply{}, nil
+}

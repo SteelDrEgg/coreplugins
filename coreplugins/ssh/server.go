@@ -105,3 +105,8 @@ func (s *sshServer) HandleSocketEvent(ctx context.Context, ev *panel.SocketEvent
 		return &panel.SocketEventReply{}, nil
 	}
 }
+
+// HandlePluginMessage is unused by the SSH plugin.
+func (s *sshServer) HandlePluginMessage(context.Context, *panel.PluginMessage) (*panel.PluginMessageReply, error) {
+	return &panel.PluginMessageReply{}, nil
+}
