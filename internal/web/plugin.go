@@ -33,6 +33,7 @@ type pluginView struct {
 	ContractVersion int            `json:"contract_version"`
 	Command         string         `json:"command"`
 	PackagePath     string         `json:"package_path"`
+	Config          conf.Plugin    `json:"config"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 	Loaded          bool           `json:"loaded"`
 }
@@ -66,32 +67,28 @@ func handlePluginList(w http.ResponseWriter, r *http.Request, pm *plugin.Manager
 		return
 	}
 
-	running := pm.Registry().List()
-	loadedByName := make(map[string]bool, len(running))
-	for _, rec := range running {
-		loadedByName[rec.InstanceID] = true
-	}
-
-	discovered := pm.Discovered()
-	plugins := make([]pluginView, 0, len(discovered))
-	for _, d := range discovered {
+	entries := pm.Entries()
+	plugins := make([]pluginView, 0, len(entries))
+	for _, entry := range entries {
 		plugins = append(plugins, pluginView{
-			Name:            d.Name,
-			Version:         d.Version,
-			Type:            d.Type,
-			ContractVersion: d.ContractVersion,
-			Command:         d.Command,
-			PackagePath:     d.PackagePath,
-			Metadata:        d.Metadata,
-			Loaded:          loadedByName[d.Name],
+			Name:            entry.Name,
+			Version:         entry.Version,
+			Type:            entry.Type,
+			ContractVersion: entry.ContractVersion,
+			Command:         entry.Command,
+			PackagePath:     entry.PackagePath,
+			Config:          entry.Config,
+			Metadata:        entry.Metadata,
+			Loaded:          entry.Loaded,
 		})
 	}
 
+	running := pm.Registry().List()
 	sort.Slice(running, func(i, j int) bool {
 		return running[i].InstanceID < running[j].InstanceID
 	})
 
-	cfg := conf.GetPlugin()
+	cfg := conf.GetPluginSystem()
 	netx.WriteSuccess(w, "Plugin state fetched", map[string]any{
 		"plugin_dir":      cfg.PluginDir,
 		"plugin_temp_dir": cfg.PluginTempDir,
@@ -106,15 +103,16 @@ func handlePluginScan(w http.ResponseWriter, r *http.Request, pm *plugin.Manager
 		return
 	}
 
-	pluginCfg := conf.GetPlugin()
-	if err := pm.ScanDir(pluginCfg.PluginDir); err != nil {
+	pm.UpdateConfig(conf.GetPluginSystem())
+	if err := pm.Scan(); err != nil {
 		netx.WriteInternalServerError(w, "Failed to scan plugin directory", err)
 		return
 	}
 
+	pluginCfg := pm.Config()
 	netx.WriteSuccess(w, "Plugin directory scanned", map[string]any{
 		"plugin_dir": pluginCfg.PluginDir,
-		"count":      len(pm.Discovered()),
+		"count":      len(pm.Entries()),
 	})
 }
 
@@ -199,7 +197,7 @@ func readPluginActionName(w http.ResponseWriter, r *http.Request) (string, bool)
 func handlePluginConfig(w http.ResponseWriter, r *http.Request, pm *plugin.Manager) {
 	switch r.Method {
 	case http.MethodGet:
-		cfg := conf.GetPlugin()
+		cfg := conf.GetPluginSystem()
 		netx.WriteSuccess(w, "Plugin config fetched", map[string]any{
 			"plugin_dir":      cfg.PluginDir,
 			"plugin_temp_dir": cfg.PluginTempDir,
@@ -228,25 +226,26 @@ func handlePluginConfig(w http.ResponseWriter, r *http.Request, pm *plugin.Manag
 			return
 		}
 
-		oldCfg := conf.GetPlugin()
+		oldCfg := conf.GetPluginSystem()
 		newCfg, err := conf.SetPluginPaths(req.PluginDir, req.PluginTempDir)
 		if err != nil {
 			netx.WriteInternalServerError(w, "Failed to persist plugin config", err)
 			return
 		}
 
-		if err := pm.ScanDir(newCfg.Plugin.PluginDir); err != nil {
+		pm.UpdateConfig(newCfg.PluginSystem)
+		if err := pm.Scan(); err != nil {
 			netx.WriteInternalServerError(w, "Plugin config saved, but scan failed", err)
 			return
 		}
 
-		tempDirChanged := oldCfg.PluginTempDir != newCfg.Plugin.PluginTempDir
+		tempDirChanged := oldCfg.PluginTempDir != newCfg.PluginSystem.PluginTempDir
 		netx.WriteSuccess(w, "Plugin config updated", map[string]any{
-			"plugin_dir":                      newCfg.Plugin.PluginDir,
-			"plugin_temp_dir":                 newCfg.Plugin.PluginTempDir,
+			"plugin_dir":                      newCfg.PluginSystem.PluginDir,
+			"plugin_temp_dir":                 newCfg.PluginSystem.PluginTempDir,
 			"temp_dir_requires_restart":       tempDirChanged,
 			"temp_dir_restart_reason":         "plugin manager temp dir is initialized at startup",
-			"discovered_plugin_count":         len(pm.Discovered()),
+			"discovered_plugin_count":         len(pm.Entries()),
 			"scan_path_effective_immediately": true,
 		})
 	default:

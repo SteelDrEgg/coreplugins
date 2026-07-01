@@ -34,12 +34,10 @@ func main() {
 	web.StartLogin(mux)
 
 	pm, err := plugin.NewManager(plugin.Options{
-		TempDir:           cfg.PluginTempDir,
-		Mux:               mux,
-		Socket:            socketServer,
-		Logger:            logger,
-		ParamsResolver:    cfg.PluginParams,
-		RunAsUserResolver: cfg.PluginRunAsUser,
+		Config: cfg.PluginSystem,
+		Mux:    mux,
+		Socket: socketServer,
+		Logger: logger,
 	})
 	if err != nil {
 		logger.Error("failed to create plugin manager", "err", err)
@@ -48,24 +46,19 @@ func main() {
 	defer pm.Close()
 	web.StartPlugin(mux, pm)
 
-	if err := pm.ScanDir(cfg.PluginDir); err != nil {
-		logger.Error("failed to scan plugin directory", "dir", cfg.PluginDir, "err", err)
-	}
-	if err := pm.StartMatching(func(d plugin.DiscoveredPlugin) bool {
-		return cfg.PluginAutoStart(d.Name)
-	}); err != nil {
+	if err := pm.LoadConfigured(); err != nil {
 		logger.Error("failed to start configured plugins", "err", err)
 	}
-	for _, d := range pm.Discovered() {
+	for _, entry := range pm.Entries() {
 		logArgs := []any{
-			"name", d.Name,
-			"version", d.Version,
-			"type", d.Type,
-			"auto_start", cfg.PluginAutoStart(d.Name),
-			"package", d.PackagePath,
+			"name", entry.Name,
+			"version", entry.Version,
+			"type", entry.Type,
+			"auto_start", entry.Config.AutoStart(),
+			"package", entry.PackagePath,
 		}
-		if d.Type == "grpc" {
-			logArgs = append(logArgs, "run_as_user", cfg.PluginRunAsUser(d.Name))
+		if entry.Type == "grpc" {
+			logArgs = append(logArgs, "run_as_user", entry.Config.RunAsUser)
 		}
 		logger.Info("discovered plugin", logArgs...)
 	}

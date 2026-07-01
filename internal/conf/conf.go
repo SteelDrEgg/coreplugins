@@ -19,12 +19,9 @@ var (
 		Web: Web{
 			RootPath: "web",
 		},
-		Plugin: Plugin{
+		PluginSystem: PluginSystem{
 			PluginDir:     "plugins",
 			PluginTempDir: "tmp",
-		},
-		Plugins: map[string]PluginPolicy{
-			pluginsDefaultKey: {Restart: "always"},
 		},
 	}
 )
@@ -94,27 +91,13 @@ func Read() Config {
 		Auth: Auth{
 			Users: make(map[string]string),
 		},
-		Web:     Conf.Web,
-		Plugin:  Conf.Plugin,
-		Plugins: make(map[string]PluginPolicy),
+		Web:          Conf.Web,
+		PluginSystem: Conf.PluginSystem.Clone(),
 	}
 
 	// Copy the users map
 	for k, v := range Conf.Auth.Users {
 		conf.Auth.Users[k] = v
-	}
-	for k, v := range Conf.Plugins {
-		policy := PluginPolicy{
-			Restart:   v.Restart,
-			RunAsUser: v.RunAsUser,
-		}
-		if len(v.Params) > 0 {
-			policy.Params = make(map[string]string, len(v.Params))
-			for pk, pv := range v.Params {
-				policy.Params[pk] = pv
-			}
-		}
-		conf.Plugins[k] = policy
 	}
 
 	return conf
@@ -146,11 +129,11 @@ func GetWeb() Web {
 	return Conf.Web
 }
 
-// GetPlugin returns the Plugin config in a thread-safe manner.
-func GetPlugin() Plugin {
+// GetPluginSystem returns the plugin-system config in a thread-safe manner.
+func GetPluginSystem() PluginSystem {
 	mu.RLock()
 	defer mu.RUnlock()
-	return Conf.Plugin
+	return Conf.PluginSystem.Clone()
 }
 
 // SetPluginPaths updates plugin package and temp directories and persists them.
@@ -166,8 +149,8 @@ func SetPluginPaths(pluginDir, pluginTempDir string) (Config, error) {
 	}
 
 	next := Read()
-	next.Plugin.PluginDir = pluginDir
-	next.Plugin.PluginTempDir = pluginTempDir
+	next.PluginSystem.PluginDir = pluginDir
+	next.PluginSystem.PluginTempDir = pluginTempDir
 
 	if err := Write(next); err != nil {
 		return Config{}, err
