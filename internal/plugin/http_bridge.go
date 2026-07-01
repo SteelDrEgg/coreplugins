@@ -159,9 +159,13 @@ func (m *Manager) handlePluginRoute(pattern string, route HTTPRoute, conn plugin
 		}
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody))
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody+1))
 	if err != nil {
 		_ = netx.WriteBadRequest(w, "failed to read request body")
+		return
+	}
+	if len(body) > maxRequestBody {
+		_ = netx.WritePayloadTooLarge(w, "request body too large")
 		return
 	}
 

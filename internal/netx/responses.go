@@ -91,6 +91,11 @@ func WriteBadRequest(w http.ResponseWriter, message string) error {
 	return WriteError(w, http.StatusBadRequest, message, nil)
 }
 
+// WritePayloadTooLarge writes a payload-too-large response.
+func WritePayloadTooLarge(w http.ResponseWriter, message string) error {
+	return WriteError(w, http.StatusRequestEntityTooLarge, message, nil)
+}
+
 // WriteUnauthorized writes an unauthorized response
 func WriteUnauthorized(w http.ResponseWriter, message string) error {
 	return WriteAuthError(w, http.StatusUnauthorized, message)
