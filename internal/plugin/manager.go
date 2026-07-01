@@ -64,7 +64,7 @@ type Manager struct {
 	plugins map[string]*pluginEntry
 
 	routeMu sync.RWMutex
-	routes  map[string]*httpRouteBinding
+	routes  map[httpRouteKey]*httpRouteBinding
 
 	staticMu sync.RWMutex
 	static   map[string]*staticMountBinding
@@ -89,8 +89,8 @@ type pluginEntry struct {
 //
 // The host mux does not receive one handler per plugin route. Instead, all
 // plugin HTTP requests enter Manager.ServeHTTP and are matched against this
-// table, which makes stop/restart remove and re-add routes without rebuilding
-// the host mux.
+// table by pattern and method, which makes stop/restart remove and re-add
+// routes without rebuilding the host mux.
 type httpRouteBinding struct {
 	owner string
 	route HTTPRoute
@@ -158,7 +158,7 @@ func NewManager(opts Options) (*Manager, error) {
 		tempDir: cfg.PluginTempDir,
 		config:  cfg,
 		plugins: make(map[string]*pluginEntry),
-		routes:  make(map[string]*httpRouteBinding),
+		routes:  make(map[httpRouteKey]*httpRouteBinding),
 		static:  make(map[string]*staticMountBinding),
 	}
 	m.registry = NewRegistry(m.kv)

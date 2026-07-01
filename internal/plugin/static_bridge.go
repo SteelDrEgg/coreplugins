@@ -59,10 +59,10 @@ func (m *Manager) registerStatic(owner, pluginRoot string, mount StaticMount) er
 	}
 
 	m.routeMu.RLock()
-	routeBinding, routeExists := m.routes[pattern]
+	routeOwner, routeExists := m.routePatternOwnedByOtherLocked(pattern, owner)
 	m.routeMu.RUnlock()
-	if routeExists && routeBinding.owner != owner {
-		return fmt.Errorf("static mount prefix %q already owned by http route from plugin %q", pattern, routeBinding.owner)
+	if routeExists {
+		return fmt.Errorf("static mount prefix %q already owned by http route from plugin %q", pattern, routeOwner)
 	}
 
 	m.staticMu.Lock()
@@ -79,6 +79,15 @@ func (m *Manager) registerStatic(owner, pluginRoot string, mount StaticMount) er
 
 	m.static[pattern] = &staticMountBinding{owner: owner, mount: mount, handler: handler}
 	return nil
+}
+
+func (m *Manager) routePatternOwnedByOtherLocked(pattern, owner string) (string, bool) {
+	for key, binding := range m.routes {
+		if key.pattern == pattern && binding != nil && binding.owner != owner {
+			return binding.owner, true
+		}
+	}
+	return "", false
 }
 
 func (m *Manager) unregisterStatic(owner string) {
