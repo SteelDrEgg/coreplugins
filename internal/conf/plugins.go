@@ -41,6 +41,24 @@ func (c Config) PluginParams(name string) map[string]string {
 	return out
 }
 
+// PluginRunAsUser returns the OS user a gRPC plugin should run as.
+//
+// Per-plugin policy under [Plugins.<name>] overrides [Plugins.default].
+// An empty result means the current minimalpanel process user.
+func (c Config) PluginRunAsUser(name string) string {
+	if policy, ok := c.Plugins[name]; ok {
+		if user := strings.TrimSpace(policy.RunAsUser); user != "" {
+			return user
+		}
+	}
+
+	if def, ok := c.Plugins[pluginsDefaultKey]; ok {
+		return strings.TrimSpace(def.RunAsUser)
+	}
+
+	return ""
+}
+
 func parseRestart(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "no", "false", "off", "disable", "disabled", "never", "0":

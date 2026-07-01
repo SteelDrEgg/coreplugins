@@ -104,7 +104,10 @@ func Read() Config {
 		conf.Auth.Users[k] = v
 	}
 	for k, v := range Conf.Plugins {
-		policy := PluginPolicy{Restart: v.Restart}
+		policy := PluginPolicy{
+			Restart:   v.Restart,
+			RunAsUser: v.RunAsUser,
+		}
 		if len(v.Params) > 0 {
 			policy.Params = make(map[string]string, len(v.Params))
 			for pk, pv := range v.Params {

@@ -45,6 +45,9 @@ type Options struct {
 	// ParamsResolver returns config params passed to a plugin at registration,
 	// keyed by plugin name. Optional.
 	ParamsResolver func(name string) map[string]string
+	// RunAsUserResolver returns the OS user used to start a gRPC plugin
+	// process, keyed by plugin name. Optional; empty means current user.
+	RunAsUserResolver func(name string) string
 }
 
 // Manager loads plugins, exposes the shared host API to them, and owns the
@@ -57,11 +60,13 @@ type Manager struct {
 	socket   *socketBridge
 	mux      *http.ServeMux
 	log      *slog.Logger
+	tempDir  string
 
 	hostGRPC     *grpcHostServer
 	hostGRPCAddr string
 
-	paramsResolver func(name string) map[string]string
+	paramsResolver    func(name string) map[string]string
+	runAsUserResolver func(name string) string
 
 	mu      sync.Mutex
 	plugins map[string]*loadedPlugin
@@ -139,14 +144,16 @@ func NewManager(opts Options) (*Manager, error) {
 	}
 
 	m := &Manager{
-		kv:             NewKV(),
-		mux:            opts.Mux,
-		log:            log,
-		plugins:        make(map[string]*loadedPlugin),
-		routes:         make(map[string]*httpRouteBinding),
-		static:         make(map[string]*staticMountBinding),
-		discovered:     make(map[string]DiscoveredPlugin),
-		paramsResolver: opts.ParamsResolver,
+		kv:                NewKV(),
+		mux:               opts.Mux,
+		log:               log,
+		tempDir:           opts.TempDir,
+		plugins:           make(map[string]*loadedPlugin),
+		routes:            make(map[string]*httpRouteBinding),
+		static:            make(map[string]*staticMountBinding),
+		discovered:        make(map[string]DiscoveredPlugin),
+		paramsResolver:    opts.ParamsResolver,
+		runAsUserResolver: opts.RunAsUserResolver,
 	}
 	m.registry = NewRegistry(m.kv)
 	m.socket = newSocketBridge(opts.Socket, log)
@@ -164,10 +171,21 @@ func NewManager(opts Options) (*Manager, error) {
 	}
 	m.hostGRPCAddr = addr
 
-	inner, err := goplugin.NewManager(goplugin.Config{
-		TempDir: opts.TempDir,
+	inner, err := m.newInner("")
+	if err != nil {
+		m.hostGRPC.Stop()
+		return nil, err
+	}
+	m.inner = inner
+	return m, nil
+}
+
+func (m *Manager) newInner(runAsUser string) (*goplugin.Manager, error) {
+	return goplugin.NewManager(goplugin.Config{
+		TempDir: m.tempDir,
 		GRPC: &goplugin.GRPCConfig{
 			HandshakeConfig:  handshake,
+			RunAsUser:        strings.TrimSpace(runAsUser),
 			AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
 			SyncStderr:       os.Stderr,
 			LoaderWithBroker: func(_ context.Context, _ *goplugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
@@ -178,12 +196,6 @@ func NewManager(opts Options) (*Manager, error) {
 			Loader: m.wasmLoader,
 		},
 	})
-	if err != nil {
-		m.hostGRPC.Stop()
-		return nil, err
-	}
-	m.inner = inner
-	return m, nil
 }
 
 // KV exposes the shared key-value store (e.g. for host-side seeding).
@@ -365,7 +377,24 @@ func (m *Manager) StartMatching(shouldStart func(DiscoveredPlugin) bool) error {
 
 // Load extracts, loads, registers and wires a single plugin package.
 func (m *Manager) Load(path string) (*loadedPlugin, error) {
-	handle, err := m.inner.Load(path)
+	scanned, err := readPluginInfo(path)
+	if err != nil {
+		return nil, err
+	}
+
+	loader := m.inner
+	runAsUser := ""
+	if scanned.Type == "grpc" && m.runAsUserResolver != nil {
+		runAsUser = strings.TrimSpace(m.runAsUserResolver(scanned.Name))
+	}
+	if runAsUser != "" {
+		loader, err = m.newInner(runAsUser)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	handle, err := loader.Load(path)
 	if err != nil {
 		return nil, err
 	}
@@ -441,8 +470,12 @@ func (m *Manager) Load(path string) (*loadedPlugin, error) {
 	m.mu.Unlock()
 	m.registry.Add(record)
 
-	m.log.Info("loaded plugin", "name", reg.Name, "version", reg.Version, "type", info.Type,
-		"routes", len(reg.Routes), "static_mounts", len(reg.Static), "namespaces", len(reg.Namespaces))
+	logArgs := []any{"name", reg.Name, "version", reg.Version, "type", info.Type,
+		"routes", len(reg.Routes), "static_mounts", len(reg.Static), "namespaces", len(reg.Namespaces)}
+	if info.Type == "grpc" && runAsUser != "" {
+		logArgs = append(logArgs, "run_as_user", runAsUser)
+	}
+	m.log.Info("loaded plugin", logArgs...)
 	return lp, nil
 }
 

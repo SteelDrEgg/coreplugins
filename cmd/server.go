@@ -34,11 +34,12 @@ func main() {
 	web.StartLogin(mux)
 
 	pm, err := plugin.NewManager(plugin.Options{
-		TempDir:        cfg.PluginTempDir,
-		Mux:            mux,
-		Socket:         socketServer,
-		Logger:         logger,
-		ParamsResolver: cfg.PluginParams,
+		TempDir:           cfg.PluginTempDir,
+		Mux:               mux,
+		Socket:            socketServer,
+		Logger:            logger,
+		ParamsResolver:    cfg.PluginParams,
+		RunAsUserResolver: cfg.PluginRunAsUser,
 	})
 	if err != nil {
 		logger.Error("failed to create plugin manager", "err", err)
@@ -56,13 +57,17 @@ func main() {
 		logger.Error("failed to start configured plugins", "err", err)
 	}
 	for _, d := range pm.Discovered() {
-		logger.Info("discovered plugin",
+		logArgs := []any{
 			"name", d.Name,
 			"version", d.Version,
 			"type", d.Type,
 			"auto_start", cfg.PluginAutoStart(d.Name),
 			"package", d.PackagePath,
-		)
+		}
+		if d.Type == "grpc" {
+			logArgs = append(logArgs, "run_as_user", cfg.PluginRunAsUser(d.Name))
+		}
+		logger.Info("discovered plugin", logArgs...)
 	}
 
 	srv := &http.Server{Addr: cfg.Listen, Handler: mux}
