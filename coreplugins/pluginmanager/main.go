@@ -38,6 +38,6 @@ func (pluginManagerPlugin) HandleSocketEvent(_ context.Context, _ *panel.SocketE
 	return &panel.SocketEventReply{}, nil
 }
 
-func (loginPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
+func (pluginManagerPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
 	return &panel.PluginMessageReply{}, nil
 }
