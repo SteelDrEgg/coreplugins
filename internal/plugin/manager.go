@@ -151,6 +151,7 @@ func NewManager(opts Options) (*Manager, error) {
 	m.registry = NewRegistry(m.kv)
 	m.socket = newSocketBridge(opts.Socket, log)
 	m.api = NewHostAPI(m.kv, m.socket, log)
+	m.api.SetMessageDispatcher(m)
 
 	if err := netx.HandleSafe(m.mux, "/", http.HandlerFunc(m.ServeHTTP)); err != nil {
 		return nil, err
@@ -191,16 +192,28 @@ func (m *Manager) KV() *KV { return m.kv }
 // Registry exposes the plugin registry.
 func (m *Manager) Registry() *Registry { return m.registry }
 
-func (m *Manager) wasmLoader(ctx context.Context, modulePath string, _ goplugin.Info) (any, func(context.Context) error, error) {
+func (m *Manager) wasmLoader(ctx context.Context, modulePath string, info goplugin.Info) (any, func(context.Context) error, error) {
 	loader, err := wasmpb.NewPluginPlugin(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("new wasm loader: %w", err)
 	}
-	client, err := loader.Load(ctx, modulePath, wasmHostFns{api: m.api})
+	client, err := loader.Load(ctx, modulePath, wasmHostFns{api: m.api, source: info.Name})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load wasm module: %w", err)
 	}
 	return client, func(ctx context.Context) error { return client.Close(ctx) }, nil
+}
+
+// DispatchPluginMessage delivers a host-authenticated plugin message to the
+// target plugin named in msg.Target.
+func (m *Manager) DispatchPluginMessage(ctx context.Context, msg PluginMessage) error {
+	m.mu.Lock()
+	lp, ok := m.plugins[msg.Target]
+	m.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("target plugin %q is not running", msg.Target)
+	}
+	return lp.conn.HandlePluginMessage(ctx, &msg)
 }
 
 // ScanDir scans *.plg packages in dir (non-recursively), reads info.yaml and

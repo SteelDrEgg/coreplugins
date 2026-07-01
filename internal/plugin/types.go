@@ -85,14 +85,29 @@ type EmitInstruction struct {
 	Payload   []byte // JSON-encoded array of emit arguments
 }
 
+// PluginMessage is the plugin-to-plugin message envelope. Source is always set
+// by the host to the registered source plugin name before delivery.
+type PluginMessage struct {
+	Source  string
+	Target  string
+	Topic   string
+	Payload []byte
+}
+
 // pluginConn is the backend-agnostic handle the host uses to call into a plugin.
 type pluginConn interface {
 	Register(ctx context.Context, req RegisterRequest) (*RegisterResult, error)
 	HandleHTTP(ctx context.Context, req *HTTPRequest) (*HTTPResponse, error)
 	HandleSocketEvent(ctx context.Context, ev *SocketEvent) ([]EmitInstruction, error)
+	HandlePluginMessage(ctx context.Context, msg *PluginMessage) error
 }
 
 // Emitter sends Socket.IO emits requested by plugins.
 type Emitter interface {
 	Emit(instr EmitInstruction) error
+}
+
+// PluginMessageDispatcher delivers trusted plugin messages to their target.
+type PluginMessageDispatcher interface {
+	DispatchPluginMessage(ctx context.Context, msg PluginMessage) error
 }

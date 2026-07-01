@@ -103,6 +103,16 @@ message KVListReply { repeated string keys = 1; }
 
 message EmitReply { string error = 1; }
 
+// ===== plugin messages =====
+message PluginMessage {
+  string source = 1; // set by host to the registered plugin name; caller-supplied values are ignored
+  string target = 2; // registered plugin name to deliver to
+  string topic = 3;
+  bytes payload = 4;
+}
+
+message PluginMessageReply { string error = 1; }
+
 message LogRequest {
   string level = 1;
   string message = 2;
@@ -115,6 +125,7 @@ service Plugin {
   rpc Register(RegisterRequest) returns (RegisterReply);
   rpc HandleHTTP(HTTPRequest) returns (HTTPResponse);
   rpc HandleSocketEvent(SocketEvent) returns (SocketEventReply);
+  rpc HandlePluginMessage(PluginMessage) returns (PluginMessageReply);
 }
 
 // plugin -> host (shared service for both backends)
@@ -128,5 +139,6 @@ service Host {
   rpc KVDelete(KVDeleteRequest) returns (KVDeleteReply);
   rpc KVList(KVListRequest) returns (KVListReply);
   rpc Emit(EmitInstruction) returns (EmitReply);
+  rpc SendPluginMessage(PluginMessage) returns (PluginMessageReply);
   rpc Log(LogRequest) returns (LogReply);
 }

@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 )
@@ -9,9 +10,10 @@ import (
 // WASM host functions and the gRPC host callback server delegate here so the
 // two backends share identical behavior.
 type HostAPI struct {
-	kv      *KV
-	emitter Emitter
-	log     *slog.Logger
+	kv         *KV
+	emitter    Emitter
+	dispatcher PluginMessageDispatcher
+	log        *slog.Logger
 }
 
 // NewHostAPI builds a HostAPI over the given KV store and emitter.
@@ -20,6 +22,12 @@ func NewHostAPI(kv *KV, emitter Emitter, log *slog.Logger) *HostAPI {
 		log = slog.Default()
 	}
 	return &HostAPI{kv: kv, emitter: emitter, log: log}
+}
+
+// SetMessageDispatcher installs the plugin message dispatcher. It is set after
+// Manager construction because the Manager itself performs target lookup.
+func (h *HostAPI) SetMessageDispatcher(dispatcher PluginMessageDispatcher) {
+	h.dispatcher = dispatcher
 }
 
 // KVGet returns the value for ns/key and whether it was found.
@@ -40,6 +48,22 @@ func (h *HostAPI) Emit(instr EmitInstruction) error {
 		return fmt.Errorf("emitter not configured")
 	}
 	return h.emitter.Emit(instr)
+}
+
+// PluginMessage sends msg to another plugin, replacing Source with the
+// authenticated caller's registered plugin name.
+func (h *HostAPI) PluginMessage(ctx context.Context, source string, msg PluginMessage) error {
+	if source == "" {
+		return fmt.Errorf("plugin message source is not authenticated")
+	}
+	if msg.Target == "" {
+		return fmt.Errorf("plugin message target is required")
+	}
+	if h.dispatcher == nil {
+		return fmt.Errorf("plugin message dispatcher not configured")
+	}
+	msg.Source = source
+	return h.dispatcher.DispatchPluginMessage(ctx, msg)
 }
 
 // Log writes a plugin log line at the requested level.

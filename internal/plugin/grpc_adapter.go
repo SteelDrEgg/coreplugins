@@ -20,6 +20,8 @@ import (
 // against the host callback server.
 const hostCallbackTokenMD = "x-panel-token"
 
+type grpcPluginSourceKey struct{}
+
 // grpcHostServer is a single, host-run gRPC server implementing the Host
 // callback service. Every gRPC plugin dials it (using a per-instance token) to
 // perform KV, Emit and Log operations.
@@ -83,11 +85,11 @@ func (s *grpcHostServer) revokeToken(token string) {
 	s.mu.Unlock()
 }
 
-func (s *grpcHostServer) knownToken(token string) bool {
+func (s *grpcHostServer) sourceForToken(token string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	_, ok := s.tokens[token]
-	return ok
+	source, ok := s.tokens[token]
+	return source, ok
 }
 
 func (s *grpcHostServer) authInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
@@ -96,9 +98,14 @@ func (s *grpcHostServer) authInterceptor(ctx context.Context, req any, _ *grpc.U
 		return nil, status.Error(codes.Unauthenticated, "missing host callback metadata")
 	}
 	vals := md.Get(hostCallbackTokenMD)
-	if len(vals) == 0 || !s.knownToken(vals[0]) {
+	if len(vals) == 0 {
 		return nil, status.Error(codes.Unauthenticated, "invalid host callback token")
 	}
+	source, ok := s.sourceForToken(vals[0])
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "invalid host callback token")
+	}
+	ctx = context.WithValue(ctx, grpcPluginSourceKey{}, source)
 	return handler(ctx, req)
 }
 
@@ -138,6 +145,19 @@ func (s *grpcHostServer) Emit(_ context.Context, req *grpcpb.EmitInstruction) (*
 		errStr = err.Error()
 	}
 	return &grpcpb.EmitReply{Error: errStr}, nil
+}
+
+func (s *grpcHostServer) SendPluginMessage(ctx context.Context, req *grpcpb.PluginMessage) (*grpcpb.PluginMessageReply, error) {
+	source, _ := ctx.Value(grpcPluginSourceKey{}).(string)
+	var errStr string
+	if err := s.api.PluginMessage(ctx, source, PluginMessage{
+		Target:  req.GetTarget(),
+		Topic:   req.GetTopic(),
+		Payload: req.GetPayload(),
+	}); err != nil {
+		errStr = err.Error()
+	}
+	return &grpcpb.PluginMessageReply{Error: errStr}, nil
 }
 
 func (s *grpcHostServer) Log(_ context.Context, req *grpcpb.LogRequest) (*grpcpb.LogReply, error) {
@@ -226,4 +246,20 @@ func (c grpcConn) HandleSocketEvent(ctx context.Context, ev *SocketEvent) ([]Emi
 		})
 	}
 	return emits, nil
+}
+
+func (c grpcConn) HandlePluginMessage(ctx context.Context, msg *PluginMessage) error {
+	reply, err := c.client.HandlePluginMessage(ctx, &grpcpb.PluginMessage{
+		Source:  msg.Source,
+		Target:  msg.Target,
+		Topic:   msg.Topic,
+		Payload: msg.Payload,
+	})
+	if err != nil {
+		return err
+	}
+	if reply.GetError() != "" {
+		return fmt.Errorf("plugin message reply: %s", reply.GetError())
+	}
+	return nil
 }

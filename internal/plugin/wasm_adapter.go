@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 
 	wasmpb "minimalpanel/pluginsdk/wasm/proto"
 )
@@ -10,7 +11,8 @@ import (
 // the shared HostAPI. An instance of this is passed to each WASM module so the
 // module's host-function imports resolve to real host behavior.
 type wasmHostFns struct {
-	api *HostAPI
+	api    *HostAPI
+	source string
 }
 
 func (w wasmHostFns) KVGet(_ context.Context, req *wasmpb.KVGetRequest) (*wasmpb.KVGetReply, error) {
@@ -49,6 +51,18 @@ func (w wasmHostFns) Emit(_ context.Context, req *wasmpb.EmitInstruction) (*wasm
 		errStr = err.Error()
 	}
 	return &wasmpb.EmitReply{Error: errStr}, nil
+}
+
+func (w wasmHostFns) SendPluginMessage(ctx context.Context, req *wasmpb.PluginMessage) (*wasmpb.PluginMessageReply, error) {
+	var errStr string
+	if err := w.api.PluginMessage(ctx, w.source, PluginMessage{
+		Target:  req.GetTarget(),
+		Topic:   req.GetTopic(),
+		Payload: req.GetPayload(),
+	}); err != nil {
+		errStr = err.Error()
+	}
+	return &wasmpb.PluginMessageReply{Error: errStr}, nil
 }
 
 func (w wasmHostFns) Log(_ context.Context, req *wasmpb.LogRequest) (*wasmpb.LogReply, error) {
@@ -139,4 +153,20 @@ func (c wasmConn) HandleSocketEvent(ctx context.Context, ev *SocketEvent) ([]Emi
 		})
 	}
 	return emits, nil
+}
+
+func (c wasmConn) HandlePluginMessage(ctx context.Context, msg *PluginMessage) error {
+	reply, err := c.client.HandlePluginMessage(ctx, &wasmpb.PluginMessage{
+		Source:  msg.Source,
+		Target:  msg.Target,
+		Topic:   msg.Topic,
+		Payload: msg.Payload,
+	})
+	if err != nil {
+		return err
+	}
+	if reply.GetError() != "" {
+		return fmt.Errorf("plugin message reply: %s", reply.GetError())
+	}
+	return nil
 }
