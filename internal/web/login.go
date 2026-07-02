@@ -14,6 +14,7 @@ type LoginRequest struct {
 }
 
 // StartLogin registers all login-related routes with the given mux
+// TODO: api location better be dynamic
 func StartLogin(mux *http.ServeMux) {
 	// API endpoints
 	mux.HandleFunc("/api/login", handleLogin)

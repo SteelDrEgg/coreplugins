@@ -119,6 +119,7 @@ func clonePlugin(p Plugin) Plugin {
 	return out
 }
 
+// TODO: Change to enum
 func parseRestart(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "always", "yes", "true", "on", "enable", "enabled", "1":
