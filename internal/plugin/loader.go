@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"minimalpanel/internal/conf"
 	grpcpb "minimalpanel/pluginsdk/grpc/proto"
@@ -21,19 +22,27 @@ var handshake = goplugin.HandshakeConfig{
 	MagicCookieValue: "minimalpanel",
 }
 
+// defaultRegisterTimeout bounds the host control-plane wait for plugin
+// registration.
+const defaultRegisterTimeout = 15 * time.Second
+
 type pluginLoaderOptions struct {
 	TempDir      string
 	API          *HostAPI
 	HostGRPC     *grpcHostServer
 	HostGRPCAddr string
+	// RegisterTimeout bounds Register calls while loading plugins. A zero value
+	// uses defaultRegisterTimeout; a negative value disables the timeout.
+	RegisterTimeout time.Duration
 }
 
 type pluginLoader struct {
-	inner        *goplugin.Manager
-	tempDir      string
-	api          *HostAPI
-	hostGRPC     *grpcHostServer
-	hostGRPCAddr string
+	inner           *goplugin.Manager
+	tempDir         string
+	api             *HostAPI
+	hostGRPC        *grpcHostServer
+	hostGRPCAddr    string
+	registerTimeout time.Duration
 }
 
 type pluginLoadResult struct {
@@ -49,14 +58,22 @@ type loadedPlugin struct {
 	conn      pluginConn
 	record    *PluginRecord
 	grpcToken string
+	// lifecycle is canceled when the host stops or replaces this loaded plugin.
+	lifecycle context.Context
+	cancel    context.CancelFunc
 }
 
 func newPluginLoader(opts pluginLoaderOptions) (*pluginLoader, error) {
+	registerTimeout := opts.RegisterTimeout
+	if registerTimeout == 0 {
+		registerTimeout = defaultRegisterTimeout
+	}
 	l := &pluginLoader{
-		tempDir:      opts.TempDir,
-		api:          opts.API,
-		hostGRPC:     opts.HostGRPC,
-		hostGRPCAddr: opts.HostGRPCAddr,
+		tempDir:         opts.TempDir,
+		api:             opts.API,
+		hostGRPC:        opts.HostGRPC,
+		hostGRPCAddr:    opts.HostGRPCAddr,
+		registerTimeout: registerTimeout,
 	}
 	inner, err := l.newInner("")
 	if err != nil {
@@ -115,7 +132,9 @@ func (l *pluginLoader) load(scanned DiscoveredPlugin, cfg conf.Plugin) (*pluginL
 		req.HostCallbackToken = token
 	}
 
-	reg, err := conn.Register(context.Background(), req)
+	registerCtx, cancelRegister := l.registerContext()
+	reg, err := conn.Register(registerCtx, req)
+	cancelRegister()
 	if err != nil {
 		if grpcToken != "" {
 			l.hostGRPC.revokeToken(grpcToken)
@@ -135,12 +154,15 @@ func (l *pluginLoader) load(scanned DiscoveredPlugin, cfg conf.Plugin) (*pluginL
 		Namespaces: reg.Namespaces,
 	}
 
+	lifecycle, cancelLifecycle := context.WithCancel(context.Background())
 	lp := &loadedPlugin{
 		loader:    loader,
 		handle:    handle,
 		conn:      conn,
 		record:    record,
 		grpcToken: grpcToken,
+		lifecycle: lifecycle,
+		cancel:    cancelLifecycle,
 	}
 	return &pluginLoadResult{
 		loaded:       lp,
@@ -148,6 +170,14 @@ func (l *pluginLoader) load(scanned DiscoveredPlugin, cfg conf.Plugin) (*pluginL
 		rootPath:     handle.RootPath(),
 		runAsUser:    runAsUser,
 	}, nil
+}
+
+// registerContext returns the host control-plane context used for Register.
+func (l *pluginLoader) registerContext() (context.Context, context.CancelFunc) {
+	if l.registerTimeout <= 0 {
+		return context.Background(), func() {}
+	}
+	return context.WithTimeout(context.Background(), l.registerTimeout)
 }
 
 func (l *pluginLoader) newInner(runAsUser string) (*goplugin.Manager, error) {
@@ -210,4 +240,25 @@ func (l *pluginLoader) unload(lp *loadedPlugin) error {
 		return nil
 	}
 	return lp.loader.Unload(lp.handle)
+}
+
+// liveConn returns a pluginConn that cancels calls when the plugin lifetime ends.
+func (lp *loadedPlugin) liveConn() pluginConn {
+	return lifetimePluginConn{lp: lp}
+}
+
+// callContext returns a call context tied to this loaded plugin's lifetime.
+func (lp *loadedPlugin) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if lp == nil {
+		return mergePluginContext(ctx, nil)
+	}
+	return mergePluginContext(ctx, lp.lifecycle)
+}
+
+// cancelLifecycle cancels in-flight and future host calls associated with this
+// loaded plugin.
+func (lp *loadedPlugin) cancelLifecycle() {
+	if lp != nil && lp.cancel != nil {
+		lp.cancel()
+	}
 }

@@ -124,6 +124,8 @@ func (r *pluginRuntime) DispatchPluginMessage(ctx context.Context, msg PluginMes
 	if lp == nil {
 		return fmt.Errorf("target plugin %q is not running", msg.Target)
 	}
+	ctx, cancel := lp.callContext(ctx)
+	defer cancel()
 	return lp.conn.HandlePluginMessage(ctx, &msg)
 }
 
@@ -425,7 +427,7 @@ func (r *pluginRuntime) loadScanned(scanned DiscoveredPlugin, cfg conf.Plugin) (
 		return nil, false, err
 	}
 
-	degraded := r.registrar.register(result.loaded.record.InstanceID, result.rootPath, result.registration, result.loaded.conn)
+	degraded := r.registrar.register(result.loaded.record.InstanceID, result.rootPath, result.registration, result.loaded.liveConn())
 	r.logLoadResult(result, degraded)
 	return result.loaded, degraded, nil
 }
@@ -499,8 +501,9 @@ func (r *pluginRuntime) cleanupLoaded(name string, lp *loadedPlugin) error {
 	if lp == nil {
 		return nil
 	}
-	r.loader.revoke(lp)
 	r.registrar.unregister(name)
+	lp.cancelLifecycle()
+	r.loader.revoke(lp)
 	if r.registry != nil && lp.record != nil {
 		r.registry.Remove(lp.record.InstanceID)
 	}
