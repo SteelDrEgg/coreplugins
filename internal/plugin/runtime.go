@@ -427,7 +427,7 @@ func (r *pluginRuntime) loadScanned(scanned DiscoveredPlugin, cfg conf.Plugin) (
 		return nil, false, err
 	}
 
-	degraded := r.registrar.register(result.loaded.record.InstanceID, result.rootPath, result.registration, result.loaded.liveConn())
+	degraded := r.registrar.register(result.loaded.record.InstanceID, result.rootPath, result.registration, result.loaded)
 	r.logLoadResult(result, degraded)
 	return result.loaded, degraded, nil
 }

@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -27,7 +26,7 @@ type socketBridge struct {
 
 type socketOwner struct {
 	pluginName      string
-	conn            pluginConn
+	plugin          *loadedPlugin
 	decl            SocketNamespaceDecl
 	events          map[string]struct{}
 	protectedEvents map[string]struct{}
@@ -51,11 +50,11 @@ func newSocketBridge(server *netx.Socket, log *slog.Logger) *socketBridge {
 // connection handler are installed once; each connection and event dispatch
 // resolves the current owner and event declaration from b.owners. Stop clears
 // the owner and disconnects sockets from that namespace; Restart replaces it.
-func (b *socketBridge) register(pluginName string, decl SocketNamespaceDecl, conn pluginConn) error {
+func (b *socketBridge) register(pluginName string, decl SocketNamespaceDecl, lp *loadedPlugin) error {
 	if decl.Name == "" {
 		return fmt.Errorf("socket namespace name is required")
 	}
-	if conn == nil {
+	if lp == nil || lp.conn == nil {
 		return fmt.Errorf("socket namespace %q requires a plugin connection", decl.Name)
 	}
 
@@ -75,12 +74,12 @@ func (b *socketBridge) register(pluginName string, decl SocketNamespaceDecl, con
 		b.installNamespaceHandlersLocked(decl.Name, ns)
 		b.registered[decl.Name] = struct{}{}
 	}
-	b.owners[decl.Name] = newSocketOwner(pluginName, decl, conn)
+	b.owners[decl.Name] = newSocketOwner(pluginName, decl, lp)
 	b.mu.Unlock()
 	return nil
 }
 
-func newSocketOwner(pluginName string, decl SocketNamespaceDecl, conn pluginConn) socketOwner {
+func newSocketOwner(pluginName string, decl SocketNamespaceDecl, lp *loadedPlugin) socketOwner {
 	events := make(map[string]struct{}, len(decl.Events))
 	for _, event := range decl.Events {
 		events[event] = struct{}{}
@@ -93,7 +92,7 @@ func newSocketOwner(pluginName string, decl SocketNamespaceDecl, conn pluginConn
 
 	return socketOwner{
 		pluginName:      pluginName,
-		conn:            conn,
+		plugin:          lp,
 		decl:            cloneSocketNamespaceDecl(decl),
 		events:          events,
 		protectedEvents: protectedEvents,
@@ -209,7 +208,7 @@ func (b *socketBridge) ownerForNamespace(ns string) (socketOwner, bool) {
 	b.mu.RLock()
 	owner := b.owners[ns]
 	b.mu.RUnlock()
-	return owner, owner.pluginName != "" && owner.conn != nil
+	return owner, owner.pluginName != "" && owner.plugin != nil && owner.plugin.conn != nil
 }
 
 func (owner socketOwner) handlesEvent(event string) bool {
@@ -229,7 +228,9 @@ func (b *socketBridge) handle(owner socketOwner, ns, event string, client *socke
 		return
 	}
 
-	emits, err := owner.conn.HandleSocketEvent(context.Background(), &SocketEvent{
+	ctx, cancel := owner.plugin.eventContext()
+	defer cancel()
+	emits, err := owner.plugin.conn.HandleSocketEvent(ctx, &SocketEvent{
 		Namespace: ns,
 		Event:     event,
 		SocketID:  string(client.Id()),

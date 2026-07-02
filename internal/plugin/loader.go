@@ -242,17 +242,18 @@ func (l *pluginLoader) unload(lp *loadedPlugin) error {
 	return lp.loader.Unload(lp.handle)
 }
 
-// liveConn returns a pluginConn that cancels calls when the plugin lifetime ends.
-func (lp *loadedPlugin) liveConn() pluginConn {
-	return lifetimePluginConn{lp: lp}
-}
-
 // callContext returns a call context tied to this loaded plugin's lifetime.
 func (lp *loadedPlugin) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if lp == nil {
 		return mergePluginContext(ctx, nil)
 	}
 	return mergePluginContext(ctx, lp.lifecycle)
+}
+
+// eventContext returns the host-side context for plugin events that do not have a
+// natural parent request context.
+func (lp *loadedPlugin) eventContext() (context.Context, context.CancelFunc) {
+	return lp.callContext(context.Background())
 }
 
 // cancelLifecycle cancels in-flight and future host calls associated with this

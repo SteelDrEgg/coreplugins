@@ -15,7 +15,7 @@ func newPluginRegistrar(router *pluginRouter, socket *socketBridge, log *slog.Lo
 	return &pluginRegistrar{router: router, socket: socket, log: log}
 }
 
-func (r *pluginRegistrar) register(owner, pluginRoot string, reg *RegisterResult, conn pluginConn) bool {
+func (r *pluginRegistrar) register(owner, pluginRoot string, reg *RegisterResult, lp *loadedPlugin) bool {
 	degraded := false
 	if reg == nil {
 		return degraded
@@ -26,7 +26,7 @@ func (r *pluginRegistrar) register(owner, pluginRoot string, reg *RegisterResult
 			r.log.Error("failed to register plugin route", "plugin", owner, "pattern", route.Pattern, "err", "router is not configured")
 			continue
 		}
-		if err := r.router.registerRoute(owner, route, conn); err != nil {
+		if err := r.router.registerRoute(owner, route, lp); err != nil {
 			degraded = true
 			r.log.Error("failed to register plugin route", "plugin", owner, "pattern", route.Pattern, "err", err)
 		}
@@ -48,7 +48,7 @@ func (r *pluginRegistrar) register(owner, pluginRoot string, reg *RegisterResult
 			r.log.Error("failed to register plugin socket namespace", "plugin", owner, "namespace", ns.Name, "err", "socket bridge is not configured")
 			continue
 		}
-		if err := r.socket.register(owner, ns, conn); err != nil {
+		if err := r.socket.register(owner, ns, lp); err != nil {
 			degraded = true
 			r.log.Error("failed to register plugin socket namespace", "plugin", owner, "namespace", ns.Name, "err", err)
 		}
