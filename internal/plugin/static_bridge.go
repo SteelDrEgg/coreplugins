@@ -14,7 +14,7 @@ import (
 // registerStatic wires a plugin-declared static directory or file into the
 // plugin dispatch table. Directory mounts are normalized to subtree patterns
 // ending in "/", while file mounts remain exact patterns.
-func (m *Manager) registerStatic(owner, pluginRoot string, mount StaticMount) error {
+func (router *pluginRouter) registerStatic(owner, pluginRoot string, mount StaticMount) error {
 	prefix := strings.TrimSpace(mount.Prefix)
 	if prefix == "" {
 		return fmt.Errorf("static mount prefix is required")
@@ -58,16 +58,16 @@ func (m *Manager) registerStatic(owner, pluginRoot string, mount StaticMount) er
 		})
 	}
 
-	m.routeMu.RLock()
-	routeOwner, routeExists := m.routePatternOwnedByOtherLocked(pattern, owner)
-	m.routeMu.RUnlock()
+	router.routeMu.RLock()
+	routeOwner, routeExists := router.routePatternOwnedByOtherLocked(pattern, owner)
+	router.routeMu.RUnlock()
 	if routeExists {
 		return fmt.Errorf("static mount prefix %q already owned by http route from plugin %q", pattern, routeOwner)
 	}
 
-	m.staticMu.Lock()
-	defer m.staticMu.Unlock()
-	if binding, ok := m.static[pattern]; ok {
+	router.staticMu.Lock()
+	defer router.staticMu.Unlock()
+	if binding, ok := router.static[pattern]; ok {
 		if binding.owner != owner {
 			return fmt.Errorf("static mount prefix %q already owned by plugin %q", pattern, binding.owner)
 		}
@@ -77,12 +77,12 @@ func (m *Manager) registerStatic(owner, pluginRoot string, mount StaticMount) er
 		return nil
 	}
 
-	m.static[pattern] = &staticMountBinding{owner: owner, mount: mount, handler: handler}
+	router.static[pattern] = &staticMountBinding{owner: owner, mount: mount, handler: handler}
 	return nil
 }
 
-func (m *Manager) routePatternOwnedByOtherLocked(pattern, owner string) (string, bool) {
-	for key, binding := range m.routes {
+func (router *pluginRouter) routePatternOwnedByOtherLocked(pattern, owner string) (string, bool) {
+	for key, binding := range router.routes {
 		if key.pattern == pattern && binding != nil && binding.owner != owner {
 			return binding.owner, true
 		}
@@ -90,12 +90,12 @@ func (m *Manager) routePatternOwnedByOtherLocked(pattern, owner string) (string,
 	return "", false
 }
 
-func (m *Manager) unregisterStatic(owner string) {
-	m.staticMu.Lock()
-	defer m.staticMu.Unlock()
-	for pattern, binding := range m.static {
+func (router *pluginRouter) unregisterStatic(owner string) {
+	router.staticMu.Lock()
+	defer router.staticMu.Unlock()
+	for pattern, binding := range router.static {
 		if binding.owner == owner {
-			delete(m.static, pattern)
+			delete(router.static, pattern)
 		}
 	}
 }
@@ -103,13 +103,13 @@ func (m *Manager) unregisterStatic(owner string) {
 // matchPluginStatic returns the longest static mount pattern that matches path.
 // The returned handler already knows whether it should serve a file or strip a
 // directory prefix.
-func (m *Manager) matchPluginStatic(path string) (StaticMount, http.Handler, int) {
-	m.staticMu.RLock()
-	defer m.staticMu.RUnlock()
+func (router *pluginRouter) matchPluginStatic(path string) (StaticMount, http.Handler, int) {
+	router.staticMu.RLock()
+	defer router.staticMu.RUnlock()
 
 	var best *staticMountBinding
 	bestPattern := ""
-	for pattern, binding := range m.static {
+	for pattern, binding := range router.static {
 		if binding == nil || binding.handler == nil {
 			continue
 		}
@@ -129,7 +129,7 @@ func (m *Manager) matchPluginStatic(path string) (StaticMount, http.Handler, int
 
 // handlePluginStatic applies mount-level auth and delegates file serving to the
 // prepared static handler.
-func (m *Manager) handlePluginStatic(mount StaticMount, handler http.Handler, w http.ResponseWriter, r *http.Request) {
+func (router *pluginRouter) handlePluginStatic(mount StaticMount, handler http.Handler, w http.ResponseWriter, r *http.Request) {
 	if mount.Protected {
 		if _, ok := auth.IsAuthenticated(r); !ok {
 			_ = netx.WriteUnauthorized(w, "authentication required")

@@ -6,12 +6,51 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 
 	"minimalpanel/internal/auth"
 	"minimalpanel/internal/netx"
 )
 
+type pluginRouter struct {
+	routeMu sync.RWMutex
+	routes  map[httpRouteKey]*httpRouteBinding
+
+	staticMu sync.RWMutex
+	static   map[string]*staticMountBinding
+}
+
+// httpRouteBinding is a live HTTP route owned by a loaded plugin.
+//
+// The host mux does not receive one handler per plugin route. Instead, all
+// plugin HTTP requests enter pluginRouter.ServeHTTP and are matched against this
+// table by pattern and method, which makes stop/restart remove and re-add
+// routes without rebuilding the host mux.
+type httpRouteBinding struct {
+	owner string
+	route HTTPRoute
+	conn  pluginConn
+}
+
+// staticMountBinding is a live static file mount owned by a loaded plugin.
+//
+// Directory mounts are stored with a trailing-slash pattern and matched by
+// prefix; file mounts are stored as exact patterns.
+type staticMountBinding struct {
+	owner   string
+	mount   StaticMount
+	handler http.Handler
+}
+
+func newPluginRouter() *pluginRouter {
+	return &pluginRouter{
+		routes: make(map[httpRouteKey]*httpRouteBinding),
+		static: make(map[string]*staticMountBinding),
+	}
+}
+
 // maxRequestBody caps the request body forwarded to plugins (8 MiB).
+// TODO: Need to find a way so plugin can accept large files
 const maxRequestBody = 8 << 20
 
 type httpRouteKey struct {
@@ -23,16 +62,16 @@ type httpRouteKey struct {
 // plugin HTTP/static route table. It chooses the longest matching plugin
 // pattern; static mounts win ties so an exact static file mount can serve its
 // asset without being shadowed by an HTTP route of the same length.
-func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	route, routePattern, routeConn, routeLen, allowedMethods := m.matchPluginRoute(r.Method, r.URL.Path)
-	mount, staticHandler, staticLen := m.matchPluginStatic(r.URL.Path)
+func (router *pluginRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	route, routePattern, routeConn, routeLen, allowedMethods := router.matchPluginRoute(r.Method, r.URL.Path)
+	mount, staticHandler, staticLen := router.matchPluginStatic(r.URL.Path)
 
 	if staticHandler != nil && staticLen >= routeLen {
-		m.handlePluginStatic(mount, staticHandler, w, r)
+		router.handlePluginStatic(mount, staticHandler, w, r)
 		return
 	}
 	if routeConn != nil {
-		m.handlePluginRoute(routePattern, route, routeConn, w, r)
+		router.handlePluginRoute(routePattern, route, routeConn, w, r)
 		return
 	}
 	if routeLen >= 0 {
@@ -45,7 +84,7 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // registerRoute wires a plugin HTTP route into the plugin dispatch table. Route
 // ownership is exclusive for each pattern/method while the owning plugin is
 // loaded; Stop removes the entry so another plugin can claim it later.
-func (m *Manager) registerRoute(owner string, route HTTPRoute, conn pluginConn) error {
+func (router *pluginRouter) registerRoute(owner string, route HTTPRoute, conn pluginConn) error {
 	if route.Pattern == "" {
 		return fmt.Errorf("http route pattern is required")
 	}
@@ -55,9 +94,9 @@ func (m *Manager) registerRoute(owner string, route HTTPRoute, conn pluginConn) 
 	route.Method = method
 	key := httpRouteKey{pattern: pattern, method: method}
 
-	m.routeMu.Lock()
-	defer m.routeMu.Unlock()
-	for existingKey, binding := range m.routes {
+	router.routeMu.Lock()
+	defer router.routeMu.Unlock()
+	for existingKey, binding := range router.routes {
 		if existingKey.pattern != pattern || binding == nil || binding.owner == owner {
 			continue
 		}
@@ -66,30 +105,30 @@ func (m *Manager) registerRoute(owner string, route HTTPRoute, conn pluginConn) 
 		}
 	}
 
-	m.staticMu.RLock()
-	staticBinding, staticExists := m.static[pattern]
-	m.staticMu.RUnlock()
+	router.staticMu.RLock()
+	staticBinding, staticExists := router.static[pattern]
+	router.staticMu.RUnlock()
 	if staticExists && staticBinding.owner != owner {
 		return fmt.Errorf("http route pattern %q already owned by static mount from plugin %q", pattern, staticBinding.owner)
 	}
 
-	if binding, ok := m.routes[key]; ok {
+	if binding, ok := router.routes[key]; ok {
 		binding.owner = owner
 		binding.route = route
 		binding.conn = conn
 		return nil
 	}
 
-	m.routes[key] = &httpRouteBinding{owner: owner, route: route, conn: conn}
+	router.routes[key] = &httpRouteBinding{owner: owner, route: route, conn: conn}
 	return nil
 }
 
-func (m *Manager) unregisterRoutes(owner string) {
-	m.routeMu.Lock()
-	defer m.routeMu.Unlock()
-	for key, binding := range m.routes {
+func (router *pluginRouter) unregisterRoutes(owner string) {
+	router.routeMu.Lock()
+	defer router.routeMu.Unlock()
+	for key, binding := range router.routes {
 		if binding.owner == owner {
-			delete(m.routes, key)
+			delete(router.routes, key)
 		}
 	}
 }
@@ -98,13 +137,13 @@ func (m *Manager) unregisterRoutes(owner string) {
 // then selects the handler by method within that pattern. Empty route methods
 // are wildcard handlers. Patterns ending in "/" are prefix matches; all other
 // patterns are exact matches.
-func (m *Manager) matchPluginRoute(method, path string) (HTTPRoute, string, pluginConn, int, []string) {
-	m.routeMu.RLock()
-	defer m.routeMu.RUnlock()
+func (router *pluginRouter) matchPluginRoute(method, path string) (HTTPRoute, string, pluginConn, int, []string) {
+	router.routeMu.RLock()
+	defer router.routeMu.RUnlock()
 
 	requestMethod := normalizeRouteMethod(method)
 	bestPattern := ""
-	for key, binding := range m.routes {
+	for key, binding := range router.routes {
 		if binding == nil || binding.conn == nil {
 			continue
 		}
@@ -122,7 +161,7 @@ func (m *Manager) matchPluginRoute(method, path string) (HTTPRoute, string, plug
 	var exact *httpRouteBinding
 	var wildcard *httpRouteBinding
 	allowed := make(map[string]struct{})
-	for key, binding := range m.routes {
+	for key, binding := range router.routes {
 		if key.pattern != bestPattern || binding == nil || binding.conn == nil {
 			continue
 		}
@@ -146,7 +185,7 @@ func (m *Manager) matchPluginRoute(method, path string) (HTTPRoute, string, plug
 
 // handlePluginRoute serializes an HTTP request into the plugin contract, calls
 // the owning plugin, and writes the plugin's response back to the client.
-func (m *Manager) handlePluginRoute(pattern string, route HTTPRoute, conn pluginConn, w http.ResponseWriter, r *http.Request) {
+func (router *pluginRouter) handlePluginRoute(pattern string, route HTTPRoute, conn pluginConn, w http.ResponseWriter, r *http.Request) {
 	method := normalizeRouteMethod(route.Method)
 	if method != "" && !strings.EqualFold(r.Method, method) {
 		writeMethodNotAllowed(w, []string{method})
