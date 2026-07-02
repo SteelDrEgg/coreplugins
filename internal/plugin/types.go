@@ -14,7 +14,7 @@ import "context"
 // HTTPRoute is a single HTTP route a plugin handles.
 type HTTPRoute struct {
 	Method    string `json:"method"`    // GET/POST/...; empty means any method
-	Pattern   string `json:"pattern"`   // net/http ServeMux pattern
+	Pattern   string `json:"pattern"`   // URL path pattern
 	Protected bool   `json:"protected"` // requires host authentication when true
 }
 
