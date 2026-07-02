@@ -1,7 +1,6 @@
 package netx
 
 import (
-	"fmt"
 	"github.com/zishang520/socket.io/servers/engine/v3"
 	"github.com/zishang520/socket.io/servers/socket/v3"
 	"github.com/zishang520/socket.io/v3/pkg/types"
@@ -172,30 +171,4 @@ func SetupGlobalServer() *Socket {
 // GetHandler returns the HTTP handler for the global Socket.IO server
 func GetHandler() http.Handler {
 	return GetGlobalServer().Handler()
-}
-
-// Test function, ignore this
-func Start(addr string) error {
-	server := new(Socket)
-	server.Initialize()
-	server.AddNamespace("/ttt")
-
-	defaultNamespace := server.GetNamespace("/ttt")
-
-	defaultNamespace.AddEvent("message", func(client *socket.Socket, data ...any) {
-		client.Emit("message", data...)
-	})
-	defaultNamespace.RegisterEvents()
-
-	defaultNamespace.AddMiddleware(func(client *socket.Socket, next func(*socket.ExtendedError)) {
-		fmt.Println(client.Handshake().Auth)
-		next(nil)
-	})
-	http.Handle("/socket.io/", server.Handler())
-
-	fmt.Println("Socket.IO服务器启动在: http://localhost:8080")
-	fmt.Println("访问测试页面: http://DrEggs-Mac-Pro-3.local:8080")
-	//StartFrontend()
-
-	return http.ListenAndServe(":8080", nil)
 }
