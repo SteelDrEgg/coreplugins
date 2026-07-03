@@ -78,7 +78,7 @@ func (router *pluginRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w, allowedMethods)
 		return
 	}
-	http.NotFound(w, r)
+	_ = netx.WriteNotFound(w)
 }
 
 // registerRoute wires a plugin HTTP route into the plugin dispatch table. Route

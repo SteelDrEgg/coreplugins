@@ -86,6 +86,11 @@ func WriteMethodNotAllowed(w http.ResponseWriter) error {
 	return WriteError(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
 }
 
+// WriteNotFound writes a not-found response.
+func WriteNotFound(w http.ResponseWriter) error {
+	return WriteError(w, http.StatusNotFound, "Not found", nil)
+}
+
 // WriteBadRequest writes a bad request response
 func WriteBadRequest(w http.ResponseWriter, message string) error {
 	return WriteError(w, http.StatusBadRequest, message, nil)
