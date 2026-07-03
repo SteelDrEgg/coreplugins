@@ -1,6 +1,7 @@
 package conf
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -28,6 +29,48 @@ func (c Config) PluginParams(name string) map[string]string {
 // An empty result means the current minimalpanel process user.
 func (c Config) PluginRunAsUser(name string) string {
 	return c.PluginSystem.EffectivePlugin(name).RunAsUser
+}
+
+// PatchPluginParams updates one plugin's explicit Params override and persists
+// the full config. Defaults remain inherited at EffectivePlugin read time.
+func PatchPluginParams(name string, patch PluginParamsPatch) (Config, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Config{}, fmt.Errorf("plugin name is required")
+	}
+	if name == pluginsDefaultKey {
+		return Config{}, fmt.Errorf("default plugin params cannot be patched by a plugin")
+	}
+
+	next := Read()
+	if next.PluginSystem.Plugins == nil {
+		next.PluginSystem.Plugins = map[string]Plugin{}
+	}
+
+	policy, exists := next.PluginSystem.Plugins[name]
+	if !exists && len(patch.Set) == 0 {
+		return next, nil
+	}
+	if policy.Params == nil && (exists || len(patch.Set) > 0) {
+		policy.Params = map[string]string{}
+	}
+
+	for _, key := range patch.Delete {
+		delete(policy.Params, key)
+	}
+	for key, value := range patch.Set {
+		policy.Params[key] = value
+	}
+
+	if len(policy.Params) == 0 {
+		policy.Params = nil
+	}
+	next.PluginSystem.Plugins[name] = policy
+
+	if err := Write(next); err != nil {
+		return Config{}, err
+	}
+	return next, nil
 }
 
 // EffectivePlugin returns the merged runtime config for name.

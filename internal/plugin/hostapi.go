@@ -13,6 +13,7 @@ type HostAPI struct {
 	kv         *KV
 	emitter    Emitter
 	dispatcher PluginMessageDispatcher
+	params     ParamsPatcher
 	log        *slog.Logger
 }
 
@@ -28,6 +29,11 @@ func NewHostAPI(kv *KV, emitter Emitter, log *slog.Logger) *HostAPI {
 // Manager construction because the Manager itself performs target lookup.
 func (h *HostAPI) SetMessageDispatcher(dispatcher PluginMessageDispatcher) {
 	h.dispatcher = dispatcher
+}
+
+// SetParamsPatcher installs the persistent Params updater.
+func (h *HostAPI) SetParamsPatcher(params ParamsPatcher) {
+	h.params = params
 }
 
 // KVGet returns the value for ns/key and whether it was found.
@@ -64,6 +70,18 @@ func (h *HostAPI) PluginMessage(ctx context.Context, source string, msg PluginMe
 	}
 	msg.Source = source
 	return h.dispatcher.DispatchPluginMessage(ctx, msg)
+}
+
+// PatchParams persists a partial update to the authenticated plugin's explicit
+// Params override.
+func (h *HostAPI) PatchParams(source string, patch ParamsPatch) error {
+	if source == "" {
+		return fmt.Errorf("plugin params source is not authenticated")
+	}
+	if h.params == nil {
+		return fmt.Errorf("plugin params patcher not configured")
+	}
+	return h.params.PatchPluginParams(source, patch)
 }
 
 // Log writes a plugin log line at the requested level.

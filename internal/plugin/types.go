@@ -94,6 +94,13 @@ type PluginMessage struct {
 	Payload []byte
 }
 
+// ParamsPatch is a partial update to the caller plugin's persisted Params
+// override.
+type ParamsPatch struct {
+	Set    map[string]string
+	Delete []string
+}
+
 // pluginConn is the backend-agnostic handle the host uses to call into a plugin.
 type pluginConn interface {
 	Register(ctx context.Context, req RegisterRequest) (*RegisterResult, error)
@@ -110,4 +117,9 @@ type Emitter interface {
 // PluginMessageDispatcher delivers trusted plugin messages to their target.
 type PluginMessageDispatcher interface {
 	DispatchPluginMessage(ctx context.Context, msg PluginMessage) error
+}
+
+// ParamsPatcher persists caller-scoped plugin Params updates.
+type ParamsPatcher interface {
+	PatchPluginParams(name string, patch ParamsPatch) error
 }

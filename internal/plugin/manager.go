@@ -104,6 +104,7 @@ func NewManager(opts Options) (*Manager, error) {
 		runtime:  runtime,
 	}
 	api.SetMessageDispatcher(m)
+	api.SetParamsPatcher(m)
 
 	if err := netx.HandleSafe(opts.Mux, "/", http.HandlerFunc(m.ServeHTTP)); err != nil {
 		_ = m.Close()
@@ -133,6 +134,20 @@ func (m *Manager) UpdateConfig(cfg conf.PluginSystem) {
 // target plugin named in msg.Target.
 func (m *Manager) DispatchPluginMessage(ctx context.Context, msg PluginMessage) error {
 	return m.runtime.DispatchPluginMessage(ctx, msg)
+}
+
+// PatchPluginParams persists a caller-scoped Params patch and refreshes runtime
+// config snapshots used by future starts.
+func (m *Manager) PatchPluginParams(name string, patch ParamsPatch) error {
+	next, err := conf.PatchPluginParams(name, conf.PluginParamsPatch{
+		Set:    patch.Set,
+		Delete: patch.Delete,
+	})
+	if err != nil {
+		return err
+	}
+	m.UpdateConfig(next.PluginSystem)
+	return nil
 }
 
 // LoadConfigured scans the configured plugin directory and starts plugins whose

@@ -134,6 +134,18 @@ func (s *grpcHostServer) KVList(_ context.Context, req *grpcpb.KVListRequest) (*
 	return &grpcpb.KVListReply{Keys: s.api.KVList(req.GetNamespace())}, nil
 }
 
+func (s *grpcHostServer) PatchParams(ctx context.Context, req *grpcpb.ParamsPatchRequest) (*grpcpb.ParamsPatchReply, error) {
+	source, _ := ctx.Value(grpcPluginSourceKey{}).(string)
+	var errStr string
+	if err := s.api.PatchParams(source, ParamsPatch{
+		Set:    req.GetSet(),
+		Delete: req.GetDelete(),
+	}); err != nil {
+		errStr = err.Error()
+	}
+	return &grpcpb.ParamsPatchReply{Error: errStr}, nil
+}
+
 func (s *grpcHostServer) Emit(_ context.Context, req *grpcpb.EmitInstruction) (*grpcpb.EmitReply, error) {
 	var errStr string
 	if err := s.api.Emit(EmitInstruction{

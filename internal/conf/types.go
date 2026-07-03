@@ -39,3 +39,10 @@ type Plugin struct {
 	// at registration, from [Plugins.<name>.params].
 	Params map[string]string `json:"params,omitempty"`
 }
+
+// PluginParamsPatch describes a partial update to one plugin's explicit
+// Params override.
+type PluginParamsPatch struct {
+	Set    map[string]string
+	Delete []string
+}
