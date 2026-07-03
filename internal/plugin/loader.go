@@ -142,6 +142,13 @@ func (l *pluginLoader) load(scanned DiscoveredPlugin, cfg conf.Plugin) (*pluginL
 		_ = loader.Unload(handle)
 		return nil, fmt.Errorf("register plugin %q: %w", instanceID, err)
 	}
+	if err := validateRegisterResultIdentity(info, reg); err != nil {
+		if grpcToken != "" {
+			l.hostGRPC.revokeToken(grpcToken)
+		}
+		_ = loader.Unload(handle)
+		return nil, err
+	}
 
 	record := &PluginRecord{
 		InstanceID: instanceID,
@@ -170,6 +177,34 @@ func (l *pluginLoader) load(scanned DiscoveredPlugin, cfg conf.Plugin) (*pluginL
 		rootPath:     handle.RootPath(),
 		runAsUser:    runAsUser,
 	}, nil
+}
+
+type unfaithfulPluginError struct {
+	reason string
+}
+
+func (e *unfaithfulPluginError) Error() string {
+	return e.reason
+}
+
+func validateRegisterResultIdentity(info goplugin.Info, reg *RegisterResult) error {
+	if reg == nil {
+		return &unfaithfulPluginError{reason: "RegisterReply is nil"}
+	}
+
+	var mismatches []string
+	if reg.Name != info.Name {
+		mismatches = append(mismatches, fmt.Sprintf("Name info.yaml=%q RegisterReply=%q", info.Name, reg.Name))
+	}
+	if reg.Version != info.Version {
+		mismatches = append(mismatches, fmt.Sprintf("Version info.yaml=%q RegisterReply=%q", info.Version, reg.Version))
+	}
+	if len(mismatches) == 0 {
+		return nil
+	}
+	return &unfaithfulPluginError{
+		reason: "info.yaml and RegisterReply mismatch: " + strings.Join(mismatches, ", "),
+	}
 }
 
 // registerContext returns the host control-plane context used for Register.

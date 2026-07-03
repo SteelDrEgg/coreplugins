@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -424,6 +425,10 @@ func (r *pluginRuntime) Load(path string) (*loadedPlugin, error) {
 func (r *pluginRuntime) loadScanned(scanned DiscoveredPlugin, cfg conf.Plugin) (*loadedPlugin, bool, error) {
 	result, err := r.loader.load(scanned, cfg)
 	if err != nil {
+		var unfaithful *unfaithfulPluginError
+		if errors.As(err, &unfaithful) {
+			r.log.Error("unfaithful plugin", "name", scanned.Name, "path", scanned.PackagePath, "err", err)
+		}
 		return nil, false, err
 	}
 
