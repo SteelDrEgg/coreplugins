@@ -41,8 +41,8 @@
     </style>
 </head>
 <body class="light min-h-screen bg-base-200 text-base-content">
-    <main class="mx-auto grid w-full max-w-[1180px] gap-4 px-4 py-6 sm:py-8">
-        <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <main class="mx-auto grid w-full max-w-[1320px] gap-4 px-4 py-6 sm:py-8">
+        <header class="flex min-w-0 max-w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex min-w-0 items-center gap-3">
                 <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-content" aria-hidden="true">
                     <span class="icon puzzle-solid size-5"></span>
@@ -52,7 +52,7 @@
                     <div class="truncate text-sm text-base-content/60" id="pathSummary">Loading plugin state...</div>
                 </div>
             </div>
-            <div class="flex flex-col gap-2 sm:flex-row">
+            <div class="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
                 <button class="btn w-full sm:w-auto" id="reloadBtn" type="button" title="Reload">
                     <span class="icon refresh" aria-hidden="true"></span>
                     Reload
@@ -64,34 +64,34 @@
             </div>
         </header>
 
-        <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Plugin status">
-            <div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
+        <section class="grid min-w-0 max-w-full gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Plugin status">
+            <div class="stat min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                 <div class="stat-title">Discovered</div>
                 <div class="stat-value text-2xl" id="discoveredCount">0</div>
             </div>
-            <div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
+            <div class="stat min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                 <div class="stat-title">Running</div>
                 <div class="stat-value text-2xl" id="runningCount">0</div>
             </div>
-            <div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
+            <div class="stat min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                 <div class="stat-title">Degraded</div>
                 <div class="stat-value text-2xl" id="degradedCount">0</div>
             </div>
-            <div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
+            <div class="stat min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                 <div class="stat-title">Inactive</div>
                 <div class="stat-value text-2xl" id="inactiveCount">0</div>
             </div>
-            <div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
+            <div class="stat min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                 <div class="stat-title">Failed</div>
                 <div class="stat-value text-2xl" id="failedCount">0</div>
             </div>
         </section>
 
-        <section class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div class="card rounded-lg border border-base-300 bg-base-100 shadow-sm">
-                <div class="flex flex-col gap-3 border-b border-base-300 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <section class="grid min-w-0 max-w-full gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div class="card min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
+                <div class="flex min-w-0 flex-col gap-3 border-b border-base-300 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div class="font-semibold">Catalog</div>
-                    <div class="flex flex-col gap-2 sm:flex-row">
+                    <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
                         <input class="input w-full sm:w-64" id="searchInput" type="search" placeholder="Search name or path">
                         <select class="select w-full sm:w-40" id="statusFilter" aria-label="Status filter">
                             <option value="all">All</option>
@@ -103,15 +103,15 @@
                         </select>
                     </div>
                 </div>
-                <div id="pluginContent">
+                <div class="min-w-0" id="pluginContent">
                     <div class="grid min-h-56 place-items-center p-6 text-center text-base-content/60">
                         <span class="loading loading-spinner loading-md"></span>
                     </div>
                 </div>
             </div>
 
-            <aside class="grid gap-4 self-start">
-                <div class="card rounded-lg border border-base-300 bg-base-100 shadow-sm">
+            <aside class="grid min-w-0 gap-4 self-start">
+                <div class="card min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                     <div class="border-b border-base-300 p-4 font-semibold">Config</div>
                     <form class="card-body gap-4 p-4" id="configForm">
                         <label class="grid gap-2">
@@ -127,7 +127,7 @@
                     </form>
                 </div>
 
-                <div class="card rounded-lg border border-base-300 bg-base-100 shadow-sm">
+                <div class="card min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
                     <div class="border-b border-base-300 p-4 font-semibold">Runtime</div>
                     <div class="grid gap-3 p-4" id="runtimeList">
                         <div class="grid min-h-32 place-items-center text-center text-base-content/60">No running plugins</div>
@@ -216,11 +216,15 @@
             return plugin.name;
         }
 
-        function pluginPackagePath(plugin) {
-            const value = String(plugin.package_path || "").trim();
+        function stripPluginsPrefix(path) {
+            const value = String(path || "").trim();
             if (!value) return "-";
             const stripped = value.replace(/^(?:\.[\\/])?plugins(?:[\\/]+|$)/, "");
             return stripped || "-";
+        }
+
+        function pluginPackagePath(plugin) {
+            return stripPluginsPrefix(plugin.package_path);
         }
 
         function normalizeStatus(status) {
@@ -396,6 +400,7 @@
                 const routes = Array.isArray(item.routes) ? item.routes.length : 0;
                 const staticMounts = Array.isArray(item.static) ? item.static.length : 0;
                 const namespaces = Array.isArray(item.namespaces) ? item.namespaces.length : 0;
+                const runtimePath = stripPluginsPrefix(item.path);
                 return `
                     <div class="rounded-lg border border-base-300 p-3">
                         <div class="flex items-center justify-between gap-2 font-semibold">
@@ -403,7 +408,7 @@
                             <span class="badge badge-success">${escapeHTML(item.type || "-")}</span>
                         </div>
                         <div class="mt-2 grid gap-1 text-xs text-base-content/60">
-                            <div class="truncate font-mono">${escapeHTML(item.path || "")}</div>
+                            <div class="truncate font-mono" title="${escapeHTML(runtimePath)}">${escapeHTML(runtimePath)}</div>
                             <div>${routes} routes / ${staticMounts} static / ${namespaces} sockets</div>
                         </div>
                     </div>
