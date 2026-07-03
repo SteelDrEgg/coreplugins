@@ -86,9 +86,19 @@ func WriteMethodNotAllowed(w http.ResponseWriter) error {
 	return WriteError(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
 }
 
+// WriteNotFound writes a not-found response.
+func WriteNotFound(w http.ResponseWriter) error {
+	return WriteError(w, http.StatusNotFound, "Not found", nil)
+}
+
 // WriteBadRequest writes a bad request response
 func WriteBadRequest(w http.ResponseWriter, message string) error {
 	return WriteError(w, http.StatusBadRequest, message, nil)
+}
+
+// WritePayloadTooLarge writes a payload-too-large response.
+func WritePayloadTooLarge(w http.ResponseWriter, message string) error {
+	return WriteError(w, http.StatusRequestEntityTooLarge, message, nil)
 }
 
 // WriteUnauthorized writes an unauthorized response
@@ -100,3 +110,5 @@ func WriteUnauthorized(w http.ResponseWriter, message string) error {
 func WriteInternalServerError(w http.ResponseWriter, message string, err error) error {
 	return WriteError(w, http.StatusInternalServerError, message, err)
 }
+
+//TODO: Stop request if not LAN

@@ -1,0 +1,1 @@
+These are core plugins that serves basic purposes like frontend frame
