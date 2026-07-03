@@ -5,58 +5,32 @@
     <title>Terminal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/assets/css/scheme.css">
+    <link rel="stylesheet" href="/assets/css/daisyui@5.css" type="text/css">
+    <script src="/assets/css/tailwindcss@4"></script>
     <link rel="stylesheet" href="/assets/terminal/xterm.min.css" />
     <style>
         :root {
             --primary-hover: color-mix(in oklab, var(--color-primary) 10%, transparent);
             --primary-light: var(--primary-hover);
-            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        html,
+        body {
+            height: 100%;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background-color: var(--color-base-100);
-            color: var(--color-base-content);
-            height: 100vh;
             overflow: hidden;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            background: var(--color-base-100);
-            border-bottom: 1px solid var(--color-base-300);
-            padding: 0.6rem 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .status-info {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .heartbeat-ip-group {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            font-weight: 300;
         }
 
         .status-indicator {
             position: relative;
-            width: 12px;
-            height: 12px;
-            background-color: var(--color-primary-content);
+            width: 0.75rem;
+            height: 0.75rem;
+            background-color: var(--color-base-content);
             border-radius: 50%;
+            opacity: 0.55;
+            flex: 0 0 auto;
         }
 
         .status-indicator::before {
@@ -72,6 +46,7 @@
 
         .status-indicator.connected {
             background-color: var(--color-primary);
+            opacity: 1;
         }
 
         .status-indicator.connected::before {
@@ -81,6 +56,7 @@
 
         .status-indicator.error {
             background-color: var(--color-error);
+            opacity: 1;
         }
 
         @keyframes radiativePulse {
@@ -98,41 +74,16 @@
             }
         }
 
-        .connect-button {
-            background: var(--color-base-100);
-            color: var(--color-primary-content);
-            border: 1px solid var(--color-base-300);
-            border-radius: 0.625rem;
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-            font-size: 0.875rem;
-            transition: all 0.2s;
-            box-shadow: var(--shadow);
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .connect-button:hover {
-            background: var(--color-base-200);
-        }
-
         .connect-button.connected {
-            background: var(--color-error);
-            color: white;
+            background-color: var(--color-error);
             border-color: var(--color-error);
+            color: var(--color-error-content);
         }
 
-        .connect-button.connected:hover {
-            background: #dc2626;
-        }
-
-        /* Terminal Container */
         .terminal-container {
-            height: calc(100vh - 56px);
-            background: white;
+            height: calc(100vh - 4rem);
             padding: 1rem;
+            min-width: 0;
         }
 
         #terminal {
@@ -141,116 +92,19 @@
             background: white;
         }
 
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+        .icon {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            background: currentColor;
+            mask: var(--icon-url) no-repeat center;
+            mask-size: contain;
+            -webkit-mask: var(--icon-url) no-repeat center;
+            -webkit-mask-size: contain;
         }
 
-        .modal.active {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-content {
-            background: var(--color-base-100);
-            border-radius: var(--radius-box);
-            padding: 1.5rem;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--color-base-300);
-        }
-
-        .modal-header h2 {
-            margin: 0;
-            font-size: 1.25rem;
-            color: var(--color-base-content);
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--color-primary-content);
-            padding: 0;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-close:hover {
-            color: var(--color-base-content);
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
-            color: var(--color-base-content);
-            font-weight: 500;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--color-base-300);
-            border-radius: var(--radius-field);
-            font-size: 0.875rem;
-            background: var(--color-base-100);
-            color: var(--color-base-content);
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: var(--color-primary);
-        }
-
-        .auth-tabs {
-            display: flex;
-            margin-bottom: 1rem;
-            border: 1px solid var(--color-base-300);
-            border-radius: var(--radius-box);
-            overflow: hidden;
-        }
-
-        .auth-tab {
-            flex: 1;
-            padding: 0.5rem;
-            background: var(--color-base-200);
-            cursor: pointer;
-            text-align: center;
-            font-size: 0.875rem;
-            color: var(--color-primary-content);
-            border: none;
-            transition: all 0.2s;
-        }
-
-        .auth-tab.active {
-            background: var(--color-primary);
-            color: white;
+        .icon.terminal {
+            --icon-url: url("/assets/icon/terminal.svg");
         }
 
         .auth-content {
@@ -261,95 +115,93 @@
             display: block;
         }
 
-        .modal-button {
-            width: 100%;
-            padding: 0.75rem;
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            border-radius: var(--radius-box);
-            font-size: 0.875rem;
-            cursor: pointer;
-            margin-top: 1rem;
-        }
-
-        .modal-button:hover {
-            background: var(--primary-hover);
-        }
-
-        .modal-button:disabled {
-            background: var(--color-primary-content);
-            cursor: not-allowed;
+        .auth-tab.active {
+            background-color: var(--color-primary);
+            color: var(--color-primary-content);
         }
     </style>
 </head>
 
-<body class="dark">
+<body class="light min-h-screen bg-base-200 text-base-content">
     <!-- Top Bar -->
-    <div class="top-bar">
-        <div class="status-info">
-            <div class="heartbeat-ip-group">
+    <div class="navbar min-h-16 border-b border-base-300 bg-base-100 px-4">
+        <div class="min-w-0 flex-1">
+            <div class="badge badge-outline min-w-0 max-w-full gap-2 px-3 py-3">
                 <div class="status-indicator" id="statusIndicator"></div>
-                <span id="statusText">Not connected</span>
+                <span class="truncate" id="statusText">Not connected</span>
             </div>
         </div>
-        <button id="connectBtn" class="connect-button" onclick="openConnectionModal()">Connect</button>
+        <button id="connectBtn" class="btn btn-primary connect-button" onclick="openConnectionModal()">
+            <span class="icon terminal" aria-hidden="true"></span>
+            Connect
+        </button>
     </div>
 
     <!-- Terminal Container -->
-    <div class="terminal-container">
+    <div class="terminal-container bg-base-100">
         <div id="terminal"></div>
     </div>
 
     <!-- Connection Modal -->
-    <div id="connectionModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>SSH Connection</h2>
-                <button class="modal-close" onclick="closeConnectionModal()">&times;</button>
-            </div>
-            
-            <div class="form-group">
-                <label for="host">Host</label>
-                <input type="text" id="host" placeholder="e.g., example.com" value="localhost">
+    <dialog id="connectionModal" class="modal modal-bottom sm:modal-middle">
+        <div class="modal-box w-11/12 max-w-md rounded-lg border border-base-300">
+            <form method="dialog">
+                <button class="btn btn-ghost btn-sm btn-square absolute right-3 top-3" aria-label="Close">x</button>
+            </form>
+            <div class="flex items-center justify-between gap-3 border-b border-base-300 pb-4">
+                <h2 class="text-lg font-semibold tracking-normal">SSH Connection</h2>
             </div>
 
-            <div class="form-group">
-                <label for="port">Port</label>
-                <input type="number" id="port" placeholder="22" value="22">
+            <div class="mt-5 grid gap-4">
+                <label class="grid gap-2">
+                    <span class="text-sm font-medium text-base-content/70">Host</span>
+                    <input class="input w-full" type="text" id="host" placeholder="e.g., example.com" value="localhost">
+                </label>
+
+                <label class="grid gap-2">
+                    <span class="text-sm font-medium text-base-content/70">Port</span>
+                    <input class="input w-full" type="number" id="port" placeholder="22" value="22">
+                </label>
+
+                <label class="grid gap-2">
+                    <span class="text-sm font-medium text-base-content/70">Username</span>
+                    <input class="input w-full" type="text" id="username" placeholder="Enter username">
+                </label>
             </div>
 
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" placeholder="Enter username">
+            <div class="tabs-box tabs mt-5 grid grid-cols-2">
+                <button class="tab auth-tab active" onclick="switchAuthTab('password', event)">Password</button>
+                <button class="tab auth-tab" onclick="switchAuthTab('key', event)">Private Key</button>
             </div>
 
-            <div class="auth-tabs">
-                <button class="auth-tab active" onclick="switchAuthTab('password')">Password</button>
-                <button class="auth-tab" onclick="switchAuthTab('key')">Private Key</button>
-            </div>
+            <div class="mt-4">
+                <div id="password-auth" class="auth-content active">
+                    <label class="grid gap-2">
+                        <span class="text-sm font-medium text-base-content/70">Password</span>
+                        <input class="input w-full" type="password" id="password" placeholder="Enter password">
+                    </label>
+                </div>
 
-            <div id="password-auth" class="auth-content active">
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" placeholder="Enter password">
+                <div id="key-auth" class="auth-content">
+                    <div class="grid gap-4">
+                        <label class="grid gap-2">
+                            <span class="text-sm font-medium text-base-content/70">Private Key Path</span>
+                            <input class="input w-full" type="text" id="privateKey" placeholder="e.g., ~/.ssh/id_rsa">
+                        </label>
+                        <label class="grid gap-2">
+                            <span class="text-sm font-medium text-base-content/70">Passphrase (optional)</span>
+                            <input class="input w-full" type="password" id="passphrase" placeholder="Enter passphrase if required">
+                        </label>
+                    </div>
                 </div>
             </div>
 
-            <div id="key-auth" class="auth-content">
-                <div class="form-group">
-                    <label for="privateKey">Private Key Path</label>
-                    <input type="text" id="privateKey" placeholder="e.g., ~/.ssh/id_rsa">
-                </div>
-                <div class="form-group">
-                    <label for="passphrase">Passphrase (optional)</label>
-                    <input type="password" id="passphrase" placeholder="Enter passphrase if required">
-                </div>
-            </div>
-
-            <button class="modal-button" onclick="connectFromModal()">Connect</button>
+            <button class="btn btn-primary mt-5 w-full" onclick="connectFromModal()">
+                <span class="icon terminal" aria-hidden="true"></span>
+                Connect
+            </button>
         </div>
-    </div>
+    </dialog>
 
     <!-- Scripts -->
     <script src="/assets/terminal/socket.io.min.js"></script>
@@ -408,16 +260,18 @@
         function openConnectionModal() {
             if (connected) {
                 disconnect();
-            } else {
-                modal.classList.add('active');
+            } else if (!modal.open) {
+                modal.showModal();
             }
         }
 
         function closeConnectionModal() {
-            modal.classList.remove('active');
+            if (modal.open) {
+                modal.close();
+            }
         }
 
-        function switchAuthTab(authType) {
+        function switchAuthTab(authType, event) {
             // Update tabs
             document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
             event.target.classList.add('active');
@@ -431,16 +285,20 @@
             connect();
         }
 
+        function setConnectButtonLabel(label) {
+            connectBtn.innerHTML = '<span class="icon terminal" aria-hidden="true"></span>' + label;
+        }
+
         // Update status
         function updateStatus(status, message) {
             statusIndicator.className = `status-indicator ${status}`;
             statusText.textContent = message;
             
             if (status === 'connected') {
-                connectBtn.textContent = 'Disconnect';
+                setConnectButtonLabel('Disconnect');
                 connectBtn.classList.add('connected');
             } else {
-                connectBtn.textContent = 'Connect';
+                setConnectButtonLabel('Connect');
                 connectBtn.classList.remove('connected');
             }
         }
@@ -564,11 +422,12 @@
             term.write('Terminal - Click Connect to start an SSH session.\r\n');
         }
 
-        // Close modal when clicking outside
-        window.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                closeConnectionModal();
-            }
+        // Close modal when clicking outside the modal box
+        modal.addEventListener('click', (event) => {
+            const rect = modal.querySelector('.modal-box').getBoundingClientRect();
+            const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
+                event.clientY >= rect.top && event.clientY <= rect.bottom;
+            if (!inside) closeConnectionModal();
         });
 
         // Handle Enter key in inputs
