@@ -7,7 +7,7 @@ PluginTempDir = "tmp"
   "401" = "/pages/login.html"
 
 [Users]
-  admin = "$2a$10$MnmhGyn4pELBONBmkY.XDOcEXDUJjMYPtVnFrdTQLeJYPZCLEJFeS"
+  admin = "$2a$10$MnmhGyn4pELBONBmkY.XDOcEXDUJjMYPtVnFrdTQLeJYPZCLEJFeS" # password: admin
 
 [Plugins]
   [Plugins.default]
