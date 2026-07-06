@@ -7,7 +7,7 @@ import (
 	hcplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
-	panel "minimalpanel/pluginsdk/grpc/proto"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 // sshPlugin adapts sshServer to the HashiCorp go-plugin gRPC interface.

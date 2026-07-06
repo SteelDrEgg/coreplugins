@@ -5,7 +5,7 @@ package main
 import (
 	"context"
 
-	panel "minimalpanel/pluginsdk/wasm/proto"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
 )
 
 func main() {}

@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"minimalpanel/internal/sshc"
-	panel "minimalpanel/pluginsdk/grpc/proto"
+	"github.com/SteelDrEgg/coreplugins/coreplugins/ssh/internal/sshc"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 // connectSSH creates an SSH client/session from a browser connect_ssh event.

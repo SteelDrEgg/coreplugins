@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	panel "minimalpanel/pluginsdk/grpc/proto"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 const (

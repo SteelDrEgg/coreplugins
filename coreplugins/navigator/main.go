@@ -7,7 +7,7 @@ import (
 	_ "embed"
 	"net/http"
 
-	panel "minimalpanel/pluginsdk/wasm/proto"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
 )
 
 //go:embed pages/index.html

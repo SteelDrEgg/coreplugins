@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	panel "minimalpanel/pluginsdk/grpc/proto"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 // hostCallbackTokenHeader is the metadata key required by the host callback API.

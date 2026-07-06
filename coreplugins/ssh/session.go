@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	panel "minimalpanel/pluginsdk/grpc/proto"
+	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 // sshSession holds one browser socket's SSH connection and PTY session.

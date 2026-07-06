@@ -4,7 +4,32 @@ PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
 PLUGIN_DIR := plugins
 DIST_DIR := dist
 
-.PHONY: tools proto proto-grpc proto-wasm build run hello hello-wasm web-assets web-assets-wasm login login-wasm navigator navigator-wasm plugin-manager plugin-manager-wasm ssh ssh-grpc clean
+CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager ssh
+
+.PHONY: tools proto proto-grpc proto-wasm plugins $(CORE_PLUGIN_TARGETS) hello-wasm web-assets-wasm login-wasm navigator-wasm plugin-manager-wasm ssh-grpc clean
+
+define WASM_BUILD_RULE
+$(1)-wasm:
+	mkdir -p $$(DIST_DIR)
+	GOOS=wasip1 GOARCH=wasm go build -o $$(DIST_DIR)/$(2).wasm -buildmode=c-shared ./coreplugins/$(3)
+endef
+
+define PACKAGE_RULE
+$(1): $(2)
+	rm -rf $$(DIST_DIR)/$(3)_pkg
+	mkdir -p $$(DIST_DIR)/$(3)_pkg/Content $$(addprefix $$(DIST_DIR)/$(3)_pkg/Content/,$(6)) $$(PLUGIN_DIR)
+	cp $$(DIST_DIR)/$(4) $$(DIST_DIR)/$(3)_pkg/Content/$(4)
+	cp coreplugins/$(5)/info.yaml $$(DIST_DIR)/$(3)_pkg/info.yaml
+	$$(if $$($(1)_CONTENT),$$($(1)_CONTENT),:)
+	cd $$(DIST_DIR)/$(3)_pkg && zip -qr ../../$$(PLUGIN_DIR)/$(1).plg .
+	rm -rf $$(DIST_DIR)/$(3)_pkg
+endef
+
+web-assets_CONTENT = cp -R coreplugins/webassets/assets $(DIST_DIR)/web_assets_pkg/Content/
+login_CONTENT = cp -R coreplugins/login/pages $(DIST_DIR)/login_pkg/Content/
+navigator_CONTENT = cp -R coreplugins/navigator/pages $(DIST_DIR)/navigator_pkg/Content/
+plugin-manager_CONTENT = cp -R coreplugins/pluginmanager/pages $(DIST_DIR)/plugin_manager_pkg/Content
+ssh_CONTENT = cp -R coreplugins/ssh/pages $(DIST_DIR)/ssh_pkg/Content
 
 ## tools: install the protobuf generators used by `make proto`
 tools:
@@ -28,96 +53,21 @@ proto-wasm:
 		--go-plugin_out=./pluginsdk/wasm --go-plugin_opt=paths=source_relative \
 		./proto/panel.proto
 
-## build: build the host server binary
-build:
-	mkdir -p $(DIST_DIR)
-	go build -o $(DIST_DIR)/minimalpanel ./cmd
+## plugins: build and package every core plugin into plugins/*.plg
+plugins: $(CORE_PLUGIN_TARGETS)
 
-## run: run the host server
-run:
-	go run ./cmd
+$(eval $(call WASM_BUILD_RULE,hello,hello,hello))
+$(eval $(call WASM_BUILD_RULE,web-assets,web_assets,webassets))
+$(eval $(call WASM_BUILD_RULE,login,login,login))
+$(eval $(call WASM_BUILD_RULE,navigator,navigator,navigator))
+$(eval $(call WASM_BUILD_RULE,plugin-manager,plugin_manager,pluginmanager))
 
-## hello: build and package the hello WASM plugin into plugins/hello.plg
-hello: hello-wasm
-	rm -rf $(DIST_DIR)/hello_pkg
-	mkdir -p $(DIST_DIR)/hello_pkg/Content $(PLUGIN_DIR)
-	cp $(DIST_DIR)/hello.wasm $(DIST_DIR)/hello_pkg/Content/hello.wasm
-	cp coreplugins/hello/info.yaml $(DIST_DIR)/hello_pkg/info.yaml
-	cd $(DIST_DIR)/hello_pkg && zip -qr ../../$(PLUGIN_DIR)/hello.plg .
-	rm -rf $(DIST_DIR)/hello_pkg
-
-hello-wasm:
-	mkdir -p $(DIST_DIR)
-	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/hello.wasm -buildmode=c-shared ./coreplugins/hello
-
-## web-assets: build and package web assets plugin into plugins/web-assets.plg
-web-assets: web-assets-wasm
-	rm -rf $(DIST_DIR)/web_assets_pkg
-	mkdir -p $(DIST_DIR)/web_assets_pkg/Content/assets $(PLUGIN_DIR)
-	cp $(DIST_DIR)/web_assets.wasm $(DIST_DIR)/web_assets_pkg/Content/web_assets.wasm
-	cp coreplugins/webassets/info.yaml $(DIST_DIR)/web_assets_pkg/info.yaml
-	cp -R coreplugins/webassets/assets/css $(DIST_DIR)/web_assets_pkg/Content/assets/css
-	cp -R coreplugins/webassets/assets/icon $(DIST_DIR)/web_assets_pkg/Content/assets/icon
-	cd $(DIST_DIR)/web_assets_pkg && zip -qr ../../$(PLUGIN_DIR)/web-assets.plg .
-	rm -rf $(DIST_DIR)/web_assets_pkg
-
-web-assets-wasm:
-	mkdir -p $(DIST_DIR)
-	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/web_assets.wasm -buildmode=c-shared ./coreplugins/webassets
-
-## login: build and package login pages plugin into plugins/login.plg
-login: login-wasm
-	rm -rf $(DIST_DIR)/login_pkg
-	mkdir -p $(DIST_DIR)/login_pkg/Content/pages $(PLUGIN_DIR)
-	cp $(DIST_DIR)/login.wasm $(DIST_DIR)/login_pkg/Content/login.wasm
-	cp coreplugins/login/info.yaml $(DIST_DIR)/login_pkg/info.yaml
-	cp coreplugins/login/pages/login.html $(DIST_DIR)/login_pkg/Content/pages/login.html
-	cp coreplugins/login/pages/logout.html $(DIST_DIR)/login_pkg/Content/pages/logout.html
-	cd $(DIST_DIR)/login_pkg && zip -qr ../../$(PLUGIN_DIR)/login.plg .
-	rm -rf $(DIST_DIR)/login_pkg
-
-login-wasm:
-	mkdir -p $(DIST_DIR)
-	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/login.wasm -buildmode=c-shared ./coreplugins/login
-
-## navigator: build and package navigator shell into plugins/navigator.plg
-navigator: navigator-wasm
-	rm -rf $(DIST_DIR)/navigator_pkg
-	mkdir -p $(DIST_DIR)/navigator_pkg/Content/pages $(PLUGIN_DIR)
-	cp $(DIST_DIR)/navigator.wasm $(DIST_DIR)/navigator_pkg/Content/navigator.wasm
-	cp coreplugins/navigator/info.yaml $(DIST_DIR)/navigator_pkg/info.yaml
-	cp coreplugins/navigator/pages/index.html $(DIST_DIR)/navigator_pkg/Content/pages/index.html
-	cd $(DIST_DIR)/navigator_pkg && zip -qr ../../$(PLUGIN_DIR)/navigator.plg .
-	rm -rf $(DIST_DIR)/navigator_pkg
-
-navigator-wasm:
-	mkdir -p $(DIST_DIR)
-	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/navigator.wasm -buildmode=c-shared ./coreplugins/navigator
-
-## plugin-manager: build and package plugin manager page into plugins/plugin-manager.plg
-plugin-manager: plugin-manager-wasm
-	rm -rf $(DIST_DIR)/plugin_manager_pkg
-	mkdir -p $(DIST_DIR)/plugin_manager_pkg/Content/pages $(PLUGIN_DIR)
-	cp $(DIST_DIR)/plugin_manager.wasm $(DIST_DIR)/plugin_manager_pkg/Content/plugin_manager.wasm
-	cp coreplugins/pluginmanager/info.yaml $(DIST_DIR)/plugin_manager_pkg/info.yaml
-	cp coreplugins/pluginmanager/pages/plugins.html $(DIST_DIR)/plugin_manager_pkg/Content/pages/plugins.html
-	cd $(DIST_DIR)/plugin_manager_pkg && zip -qr ../../$(PLUGIN_DIR)/plugin-manager.plg .
-	rm -rf $(DIST_DIR)/plugin_manager_pkg
-
-plugin-manager-wasm:
-	mkdir -p $(DIST_DIR)
-	GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR)/plugin_manager.wasm -buildmode=c-shared ./coreplugins/pluginmanager
-
-## ssh: build and package SSH terminal gRPC plugin into plugins/ssh.plg
-ssh: ssh-grpc
-	rm -rf $(DIST_DIR)/ssh_pkg
-	mkdir -p $(DIST_DIR)/ssh_pkg/Content/pages $(DIST_DIR)/ssh_pkg/Content/assets/terminal $(PLUGIN_DIR)
-	cp $(DIST_DIR)/ssh-plugin $(DIST_DIR)/ssh_pkg/Content/ssh-plugin
-	cp coreplugins/ssh/info.yaml $(DIST_DIR)/ssh_pkg/info.yaml
-	cp coreplugins/ssh/pages/terminal.html $(DIST_DIR)/ssh_pkg/Content/pages/terminal.html
-	cp -R coreplugins/ssh/assets/terminal/. $(DIST_DIR)/ssh_pkg/Content/assets/terminal
-	cd $(DIST_DIR)/ssh_pkg && zip -qr ../../$(PLUGIN_DIR)/ssh.plg .
-	rm -rf $(DIST_DIR)/ssh_pkg
+$(eval $(call PACKAGE_RULE,hello,hello-wasm,hello,hello.wasm,hello,))
+$(eval $(call PACKAGE_RULE,web-assets,web-assets-wasm,web_assets,web_assets.wasm,webassets,assets))
+$(eval $(call PACKAGE_RULE,login,login-wasm,login,login.wasm,login,pages))
+$(eval $(call PACKAGE_RULE,navigator,navigator-wasm,navigator,navigator.wasm,navigator,pages))
+$(eval $(call PACKAGE_RULE,plugin-manager,plugin-manager-wasm,plugin_manager,plugin_manager.wasm,pluginmanager,pages))
+$(eval $(call PACKAGE_RULE,ssh,ssh-grpc,ssh,ssh-plugin,ssh,pages assets/terminal))
 
 ssh-grpc:
 	mkdir -p $(DIST_DIR)
