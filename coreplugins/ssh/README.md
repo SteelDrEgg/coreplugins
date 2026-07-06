@@ -41,3 +41,13 @@ This builds `dist/ssh-plugin` and packages `plugins/ssh.plg` with the binary,
 
 For local debugging, start the panel with `go run ./cmd` and open
 `/pages/terminal.html` after logging in.
+
+## Example config
+
+```toml
+  [Plugins.ssh]
+    Restart = "always"
+    RunAsUser = ""
+    [Plugins.ssh.Params]
+      ssh_config_path = "~/.ssh/config"
+```
