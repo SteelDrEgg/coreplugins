@@ -2,9 +2,9 @@
 
 <h1>Arupa Core Plugins</h1>
 
-[![Release Plugins](https://github.com/SteelDrEgg/coreplugins/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/SteelDrEgg/coreplugins/actions/workflows/release.yml)
-
 </div>
+
+[![Release](https://github.com/SteelDrEgg/coreplugins/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/SteelDrEgg/coreplugins/actions/workflows/release.yml)
 
 Core plugin repository for Arupa.
 
@@ -62,11 +62,11 @@ make plugins PLUGIN_DIR=../minimalpanel/plugins
 Each plugin's `RegisterReply.Version` is injected at build time with `ldflags`
 from `coreplugins/<plugin>/info.yaml`.
 
-## Distribution
+## Batch Releases
 
-GitHub Actions publishes full plugin batches to GitHub Releases. The release
-tag is a distribution batch such as `dist-2026-07-07-134500`; each plugin keeps
-its own version in `info.yaml`.
+GitHub Actions publishes full plugin batches as GitHub Releases. Release tags
+keep the `dist-YYYY-MM-DD-HHMMSS` format; each plugin keeps its own version in
+`info.yaml`.
 
 Latest plugin packages are available from stable URLs:
 

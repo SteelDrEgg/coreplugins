@@ -1,4 +1,4 @@
-name: Release Plugins
+name: Release
 
 on:
   workflow_dispatch:
@@ -68,7 +68,7 @@ jobs:
 
           {
             echo "tag=${tag}"
-            echo "title=Distribution ${release_date}"
+            echo "title=Batch Release ${release_date}"
           } >> "${GITHUB_OUTPUT}"
 
           {
