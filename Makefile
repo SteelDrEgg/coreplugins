@@ -1,7 +1,7 @@
 GOBIN := $(shell go env GOPATH)/bin
 PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
 
-PLUGIN_DIR := plugins
+PLUGIN_DIR := ../minimalpanel/plugins
 DIST_DIR := dist
 
 CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager ssh
@@ -28,7 +28,7 @@ endef
 web-assets_CONTENT = cp -R coreplugins/webassets/assets $(DIST_DIR)/web_assets_pkg/Content/
 login_CONTENT = cp -R coreplugins/login/pages $(DIST_DIR)/login_pkg/Content/
 navigator_CONTENT = cp -R coreplugins/navigator/pages $(DIST_DIR)/navigator_pkg/Content/
-plugin-manager_CONTENT = cp -R coreplugins/pluginmanager/pages $(DIST_DIR)/plugin_manager_pkg/Content
+plugin-manager_CONTENT = cp -R coreplugins/pluginmanager/pages $(DIST_DIR)/plugin_manager_pkg/Content && cp -R coreplugins/pluginmanager/icon $(DIST_DIR)/plugin_manager_pkg/Content
 ssh_CONTENT = cp -R coreplugins/ssh/pages $(DIST_DIR)/ssh_pkg/Content && cp -R coreplugins/ssh/assets $(DIST_DIR)/ssh_pkg/Content
 
 ## tools: install the protobuf generators used by `make proto`
