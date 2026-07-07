@@ -1,4 +1,10 @@
-<div align="center"><h1>Arupa Core Plugins</h1></div>
+<div align="center">
+
+<h1>Arupa Core Plugins</h1>
+
+[![Release Plugins](https://github.com/SteelDrEgg/coreplugins/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/SteelDrEgg/coreplugins/actions/workflows/release.yml)
+
+</div>
 
 Core plugin repository for Arupa.
 
