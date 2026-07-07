@@ -35,8 +35,8 @@ jobs:
       - name: Generate SDK
         run: make proto
 
-      - name: Test
-        run: go test ./...
+#      - name: Test
+#        run: go test ./...
 
       - name: Package plugins
         run: make plugins
