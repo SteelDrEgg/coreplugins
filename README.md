@@ -16,6 +16,12 @@ plugin keeps its own runtime metadata, source code, pages, and assets inside
 
 ## Build
 
+Generate SDK from `proto/panel.proto`:
+
+```sh
+make proto
+```
+
 Build every core plugin:
 
 ```sh
@@ -33,12 +39,15 @@ make web-assets
 Packages are written to `plugins/*.plg`. Temporary build output is written to
 `dist/`.
 
-## Regenerate SDKs
+## Conventions
 
-Only needed after changing `proto/panel.proto`:
+All plugin have their own namespace, and should not touch anything outside the namespace.
+An SSH plugin may have the following assets, but they must all stay under namespace `/ssh`.  
 
-```sh
-make proto
+```text
+/ssh/pages/terimnal.html
+/ssh/icon/terminal.svg
+/ssh/js/terminal.js
 ```
 
-`make proto` installs protobuf generators into the local `.bin/` directory.
+Though there is nothing stopping you from doing the opposite, but it prevents collision.
