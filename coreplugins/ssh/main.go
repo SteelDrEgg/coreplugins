@@ -5,11 +5,11 @@ import hcplugin "github.com/hashicorp/go-plugin"
 // pluginName is the dispense name expected by the host's default gRPC preset.
 const pluginName = "default_grpc"
 
-// handshake must match the host-side minimalpanel plugin manager handshake.
+// handshake must match the host-side plugin manager handshake.
 var handshake = hcplugin.HandshakeConfig{
 	ProtocolVersion:  1,
-	MagicCookieKey:   "MINIMALPANEL_PLUGIN",
-	MagicCookieValue: "minimalpanel",
+	MagicCookieKey:   "ARUPA_PLUGIN",
+	MagicCookieValue: "arupa",
 }
 
 // main serves the SSH terminal plugin as a HashiCorp go-plugin gRPC process.

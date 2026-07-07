@@ -29,7 +29,7 @@ const (
 	eventTerminalOutput  = "terminal_output"
 )
 
-// sshServer implements the minimalpanel Plugin gRPC service for SSH terminals.
+// sshServer implements the Plugin gRPC service for SSH terminals.
 //
 // It owns active SSH sessions keyed by Socket.IO socket id and uses the host
 // callback service to emit terminal output back to the browser.
@@ -64,13 +64,13 @@ func (s *sshServer) Register(ctx context.Context, req *panel.RegisterRequest) (*
 		Version: pluginVersion,
 		StaticMounts: []*panel.StaticMount{
 			{
-				Prefix:    "/pages/terminal.html",
+				Prefix:    "/ssh/pages/terminal.html",
 				Directory: "$PLUGIN_ROOT/pages/terminal.html",
 				Protected: true,
 			},
 			{
-				Prefix:    "/assets/terminal/",
-				Directory: "$PLUGIN_ROOT/assets/terminal",
+				Prefix:    "/ssh/assets/",
+				Directory: "$PLUGIN_ROOT/assets",
 				Protected: true,
 			},
 		},

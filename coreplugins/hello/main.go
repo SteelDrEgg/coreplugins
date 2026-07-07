@@ -1,6 +1,6 @@
 //go:build wasip1
 
-// Command hello is a minimal WASM example plugin for minimalpanel.
+// Command hello is a minimal WASM example plugin.
 //
 // It demonstrates the full plugin contract:
 //   - Register: declares an HTTP route and a Socket.IO namespace, logs through

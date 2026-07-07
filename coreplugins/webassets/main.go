@@ -22,10 +22,9 @@ const webAssetsNamespace = "web-assets"
 func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	host := panel.NewHost()
 	urls := map[string]string{
-		"css_prefix":       "/assets/css/",
-		"icon_prefix":      "/assets/icon/",
-		"scheme_light_css": "/assets/css/scheme_light.css",
-		"scheme_dark_css":  "/assets/css/scheme_dark.css",
+		"css_prefix":  "/assets/css/",
+		"icon_prefix": "/assets/icon/",
+		"scheme_css":  "/assets/css/scheme.css",
 	}
 	urlsJSON, err := json.Marshal(urls)
 	if err == nil {

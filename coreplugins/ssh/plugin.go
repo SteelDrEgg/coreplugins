@@ -15,7 +15,7 @@ type sshPlugin struct {
 	hcplugin.NetRPCUnsupportedPlugin
 }
 
-// GRPCServer registers the minimalpanel Plugin service implemented by sshServer.
+// GRPCServer registers the Plugin service implemented by sshServer.
 func (p *sshPlugin) GRPCServer(_ *hcplugin.GRPCBroker, s *grpc.Server) error {
 	panel.RegisterPluginServer(s, newSSHServer())
 	return nil

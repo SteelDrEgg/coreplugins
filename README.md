@@ -1,9 +1,9 @@
-<div align="center"><h1>MinimalPanel Core Plugins</h1></div>
+<div align="center"><h1>Arupa Core Plugins</h1></div>
 
-Core plugin repository for MinimalPanel.
+Core plugin repository for Arupa.
 
 This repository owns the plugin contract, generated plugin SDKs, and the
-official core plugins that MinimalPanel can install as `.plg` packages. Each
+official core plugins that Arupa can install as `.plg` packages. Each
 plugin keeps its own runtime metadata, source code, pages, and assets inside
 `coreplugins/<plugin>/`.
 

@@ -22,8 +22,13 @@ func (pluginManagerPlugin) Register(_ context.Context, _ *panel.RegisterRequest)
 		Version: "0.1.0",
 		StaticMounts: []*panel.StaticMount{
 			{
-				Prefix:    "/pages/plugins.html",
+				Prefix:    "/plugins/pages/plugins.html",
 				Directory: "$PLUGIN_ROOT/pages/plugins.html",
+				Protected: true,
+			},
+			{
+				Prefix:    "/plugins/icon/",
+				Directory: "$PLUGIN_ROOT/icon",
 				Protected: true,
 			},
 		},
