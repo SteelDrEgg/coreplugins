@@ -24,7 +24,7 @@ type navigatorPlugin struct{}
 func (navigatorPlugin) Register(_ context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	return &panel.RegisterReply{
 		Name:    "navigator",
-		Version: "0.1.0",
+		Version: pluginVersion,
 		HttpRoutes: []*panel.HTTPRoute{
 			{
 				Method:    http.MethodGet,

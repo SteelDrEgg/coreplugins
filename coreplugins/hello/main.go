@@ -57,7 +57,7 @@ func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*p
 
 	return &panel.RegisterReply{
 		Name:    "hello",
-		Version: "0.1.0",
+		Version: pluginVersion,
 		HttpRoutes: []*panel.HTTPRoute{
 			{Method: "GET", Pattern: "/hello"},
 			{Method: "GET", Pattern: "/hello/private", Protected: true},

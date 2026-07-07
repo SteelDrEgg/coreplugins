@@ -12,7 +12,8 @@ plugin keeps its own runtime metadata, source code, pages, and assets inside
 - `proto/panel.proto` is the host/plugin contract.
 - `pluginsdk/grpc` and `pluginsdk/wasm` are generated SDKs used by plugin code.
 - `coreplugins/<plugin>/info.yaml` is the runtime metadata loaded by the host.
-- `Makefile` builds each plugin and writes a `.plg` package.
+- `coreplugins/<plugin>/Makefile` builds and packages one plugin.
+- `Makefile` is the repository-level entrypoint that delegates to each plugin.
 
 ## Build
 
@@ -36,8 +37,21 @@ make login
 make web-assets
 ```
 
+Or build from the plugin directory:
+
+```sh
+make -C coreplugins/ssh package
+```
+
 Packages are written to `plugins/*.plg`. Temporary build output is written to
-`dist/`.
+`dist/`. Override `PLUGIN_DIR` to send packages elsewhere:
+
+```sh
+make plugins PLUGIN_DIR=../minimalpanel/plugins
+```
+
+Each plugin's `RegisterReply.Version` is injected at build time with `ldflags`
+from `coreplugins/<plugin>/info.yaml`.
 
 ## Conventions
 

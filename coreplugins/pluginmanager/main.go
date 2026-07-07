@@ -19,7 +19,7 @@ type pluginManagerPlugin struct{}
 func (pluginManagerPlugin) Register(_ context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	return &panel.RegisterReply{
 		Name:    "plugin-manager",
-		Version: "0.1.0",
+		Version: pluginVersion,
 		StaticMounts: []*panel.StaticMount{
 			{
 				Prefix:    "/plugins/pages/plugins.html",

@@ -11,9 +11,7 @@ import (
 )
 
 const (
-	// pluginDisplayName and pluginVersion are returned to the host registry.
 	pluginDisplayName = "ssh"
-	pluginVersion     = "0.1.0"
 
 	// socketNamespace is the Socket.IO namespace served by this plugin.
 	socketNamespace = "/ssh"

@@ -44,7 +44,7 @@ func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (
 
 	return &panel.RegisterReply{
 		Name:    "web-assets",
-		Version: "0.1.0",
+		Version: pluginVersion,
 		StaticMounts: []*panel.StaticMount{
 			{
 				Prefix:    "/assets/css/",
