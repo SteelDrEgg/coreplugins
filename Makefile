@@ -31,7 +31,9 @@ proto-wasm:
 		./proto/panel.proto
 
 ## plugins: build and package every core plugin into plugins/*.plg
-plugins: $(CORE_PLUGIN_TARGETS)
+plugins: proto $(CORE_PLUGIN_TARGETS)
+
+$(CORE_PLUGIN_TARGETS): proto
 
 hello:
 	$(MAKE) -C coreplugins/hello package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)

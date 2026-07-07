@@ -29,6 +29,9 @@ Build every core plugin:
 make plugins
 ```
 
+This regenerates `pluginsdk/grpc` and `pluginsdk/wasm` from `proto/panel.proto`
+before packaging plugins.
+
 Build one plugin:
 
 ```sh
@@ -52,6 +55,20 @@ make plugins PLUGIN_DIR=../minimalpanel/plugins
 
 Each plugin's `RegisterReply.Version` is injected at build time with `ldflags`
 from `coreplugins/<plugin>/info.yaml`.
+
+## Distribution
+
+GitHub Actions publishes full plugin batches to GitHub Releases. The release
+tag is a distribution batch such as `dist-2026-07-07-134500`; each plugin keeps
+its own version in `info.yaml`.
+
+Latest plugin packages are available from stable URLs:
+
+```text
+https://github.com/<owner>/<repo>/releases/latest/download/ssh.plg
+https://github.com/<owner>/<repo>/releases/latest/download/login.plg
+https://github.com/<owner>/<repo>/releases/latest/download/web-assets.plg
+```
 
 ## Conventions
 
