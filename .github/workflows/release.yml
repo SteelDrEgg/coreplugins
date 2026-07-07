@@ -1,0 +1,99 @@
+name: Release Plugins
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release.yml"
+      - "Makefile"
+      - "mk/**"
+      - "go.mod"
+      - "go.sum"
+      - "proto/**"
+      - "pluginsdk/**"
+      - "coreplugins/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-plugins
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install protobuf generators
+        run: make tools
+
+      - name: Generate SDK
+        run: make proto
+
+      - name: Test
+        run: go test ./...
+
+      - name: Package plugins
+        run: make plugins
+
+      - name: Stage release assets
+        run: |
+          mkdir -p release-assets
+          cp plugins/*.plg release-assets/
+
+      - name: Prepare release metadata
+        id: release
+        run: |
+          release_date="$(date -u +%Y-%m-%d)"
+          release_stamp="$(date -u +%Y-%m-%d-%H%M%S)"
+          tag="dist-${release_stamp}"
+
+          {
+            echo "tag=${tag}"
+            echo "title=Distribution ${release_date}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "Built from \`${GITHUB_SHA}\`."
+            echo
+            echo "Latest downloads:"
+            for asset in release-assets/*.plg; do
+              name="$(basename "${asset}")"
+              echo "- https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${name}"
+            done
+            echo
+            echo "Plugin versions:"
+            for info in coreplugins/*/info.yaml; do
+              plugin_name="$(awk -F': *' '$1 == "Name" { print $2; exit }' "${info}")"
+              plugin_version="$(awk -F': *' '$1 == "Version" { print $2; exit }' "${info}")"
+              echo "- ${plugin_name}: ${plugin_version}"
+            done
+          } > release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.release.outputs.tag }}" \
+            release-assets/*.plg \
+            --title "${{ steps.release.outputs.title }}" \
+            --notes-file release-notes.md \
+            --latest

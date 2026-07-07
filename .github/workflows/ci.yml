@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    name: Test and package plugins
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install protobuf generators
+        run: make tools
+
+      - name: Generate SDK
+        run: make proto
+
+      - name: Test
+        run: go test ./...
+
+      - name: Package plugins
+        run: make plugins
+
+      - name: Upload plugin packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-plugin-packages
+          path: plugins/*.plg
+          if-no-files-found: error
