@@ -29,7 +29,7 @@ web-assets_CONTENT = cp -R coreplugins/webassets/assets $(DIST_DIR)/web_assets_p
 login_CONTENT = cp -R coreplugins/login/pages $(DIST_DIR)/login_pkg/Content/
 navigator_CONTENT = cp -R coreplugins/navigator/pages $(DIST_DIR)/navigator_pkg/Content/
 plugin-manager_CONTENT = cp -R coreplugins/pluginmanager/pages $(DIST_DIR)/plugin_manager_pkg/Content
-ssh_CONTENT = cp -R coreplugins/ssh/pages $(DIST_DIR)/ssh_pkg/Content
+ssh_CONTENT = cp -R coreplugins/ssh/pages $(DIST_DIR)/ssh_pkg/Content && cp -R coreplugins/ssh/assets $(DIST_DIR)/ssh_pkg/Content
 
 ## tools: install the protobuf generators used by `make proto`
 tools:
