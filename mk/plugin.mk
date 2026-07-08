@@ -9,6 +9,7 @@ PACKAGE_WORKDIR := $(DIST_DIR_ABS)/$(PACKAGE_STEM)_pkg
 PLUGIN_NAME := $(shell awk -F': *' '$$1 == "Name" { print $$2; exit }' info.yaml)
 PLUGIN_VERSION := $(shell awk -F': *' '$$1 == "Version" { print $$2; exit }' info.yaml)
 LD_FLAGS := -X main.pluginVersion=$(PLUGIN_VERSION)
+CGO_ENABLED ?= 0
 
 .PHONY: build package clean
 
@@ -18,7 +19,7 @@ build:
 	$(if $(PLUGIN_BINARY),,$(error PLUGIN_BINARY is required))
 	$(if $(PACKAGE_STEM),,$(error PACKAGE_STEM is required))
 	mkdir -p $(DIST_DIR_ABS)
-	$(if $(filter wasm,$(PLUGIN_TYPE)),GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -buildmode=c-shared -ldflags "$(LD_FLAGS)" .,go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -ldflags "$(LD_FLAGS)" .)
+	$(if $(filter wasm,$(PLUGIN_TYPE)),CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -buildmode=c-shared -ldflags "$(LD_FLAGS)" .,CGO_ENABLED=$(CGO_ENABLED) go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -ldflags "$(LD_FLAGS)" .)
 
 package: build
 	rm -rf $(PACKAGE_WORKDIR)
