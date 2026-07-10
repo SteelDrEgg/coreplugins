@@ -28,11 +28,11 @@
         }
 
         .icon.puzzle {
-            --icon-url: url("/plugins/icon/puzzle.svg");
+            --icon-url: url("/assets/icon/puzzle.svg");
         }
 
         .icon.puzzle-solid {
-            --icon-url: url("/plugins/icon/puzzle-solid.svg");
+            --icon-url: url("/assets/icon/puzzle-solid.svg");
         }
 
         .icon.stop {
@@ -219,11 +219,11 @@
         function pluginIcon(plugin) {
             if (plugin.metadata && plugin.metadata.Icon) return plugin.metadata.Icon;
             if (plugin.metadata && plugin.metadata.icon) return plugin.metadata.icon;
-            return "/plugins/icon/puzzle.svg";
+            return "/assets/icon/puzzle.svg";
         }
 
         function iconStyle(url) {
-            const safeURL = String(url || "/plugins/icon/puzzle.svg").replace(/'/g, "%27");
+            const safeURL = String(url || "/assets/icon/puzzle.svg").replace(/'/g, "%27");
             return `--icon-url: url('${safeURL}')`;
         }
 

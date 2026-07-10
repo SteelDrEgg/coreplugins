@@ -6,5 +6,5 @@ Command: $PLUGIN_ROOT/plugin_manager.wasm
 DisplayName: Plugins
 Category: core
 Entry: /plugins/pages/plugins.html
-Icon: /plugins/icon/puzzle.svg
-IconSolid: /plugins/icon/puzzle-solid.svg
+Icon: /assets/icon/puzzle.svg
+IconSolid: /assets/icon/puzzle-solid.svg
