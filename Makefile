@@ -4,7 +4,7 @@ PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
 PLUGIN_DIR ?= plugins
 DIST_DIR ?= dist
 
-CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager ssh
+CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager ssh web-sdk
 
 .PHONY: tools proto proto-grpc proto-wasm plugins $(CORE_PLUGIN_TARGETS) clean
 
@@ -37,6 +37,9 @@ $(CORE_PLUGIN_TARGETS): proto
 
 hello:
 	$(MAKE) -C coreplugins/hello package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+
+web-sdk:
+	$(MAKE) -C coreplugins/websdk package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
 
 web-assets:
 	$(MAKE) -C coreplugins/webassets package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
