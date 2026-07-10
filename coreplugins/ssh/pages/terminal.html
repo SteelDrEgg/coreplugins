@@ -7,6 +7,13 @@
     <link rel="stylesheet" href="/assets/css/scheme.css">
     <link rel="stylesheet" href="/assets/css/daisyui@5.css" type="text/css">
     <script src="/assets/css/tailwindcss@4"></script>
+    <script src="/assets/js/sdk.js"></script>
+    <script>window.module = { exports: {} };</script>
+    <script src="/assets/vendor/culori.js"></script>
+    <script>
+        window.culori = window.module.exports;
+        delete window.module;
+    </script>
     <link rel="stylesheet" href="/ssh/assets/terminal/xterm.min.css" />
     <style>
         :root {
@@ -83,7 +90,7 @@
         #terminal {
             width: 100%;
             height: 100%;
-            background: white;
+            background: var(--color-base-100);
         }
 
         .icon {
@@ -203,31 +210,55 @@
     <script src="/ssh/assets/terminal/xterm-addon-fit.min.js"></script>
 
     <script>
-        // Terminal setup with white theme
+        const webSDK = window.webSDK;
+        const terminalColorVariables = {
+            background: '--color-base-100',
+            foreground: '--color-base-content',
+            cursor: '--color-base-content',
+            selection: '--color-primary-content',
+            black: '--color-neutral',
+            red: '--color-error',
+            green: '--color-success',
+            yellow: '--color-warning',
+            blue: '--color-primary',
+            magenta: '--color-secondary',
+            cyan: '--color-accent',
+            white: '--color-base-100',
+            brightBlack: '--color-neutral-content',
+            brightRed: '--color-error',
+            brightGreen: '--color-success',
+            brightYellow: '--color-warning',
+            brightBlue: '--color-primary',
+            brightMagenta: '--color-secondary',
+            brightCyan: '--color-accent',
+            brightWhite: '--color-base-content'
+        };
+
+        function cssColorToHex(value, fallback) {
+            const parsed = window.culori.parse(value);
+            return parsed ? window.culori.formatHex(parsed) : fallback;
+        }
+
+        function terminalThemeFromCSS() {
+            const styles = getComputedStyle(document.body);
+            const fallback = '#000000';
+            return Object.fromEntries(Object.entries(terminalColorVariables).map(([name, variable]) => [
+                name,
+                cssColorToHex(styles.getPropertyValue(variable).trim(), fallback)
+            ]));
+        }
+
+        function applyTheme(theme) {
+            const normalized = theme === 'dark' ? 'dark' : 'light';
+            document.body.classList.remove('light', 'dark');
+            document.body.classList.add(normalized);
+            if (typeof term !== 'undefined') term.options.theme = terminalThemeFromCSS();
+        }
+
+        // Terminal setup with the persisted application theme and CSS colors.
         const term = new Terminal({
             cursorBlink: true,
-            theme: {
-                background: '#ffffff',
-                foreground: '#000000',
-                cursor: '#000000',
-                selection: '#add2ff',
-                black: '#000000',
-                red: '#cd0000',
-                green: '#00cd00',
-                yellow: '#cdcd00',
-                blue: '#0000ee',
-                magenta: '#cd00cd',
-                cyan: '#00cdcd',
-                white: '#e5e5e5',
-                brightBlack: '#7f7f7f',
-                brightRed: '#ff0000',
-                brightGreen: '#00ff00',
-                brightYellow: '#ffff00',
-                brightBlue: '#5c5cff',
-                brightMagenta: '#ff00ff',
-                brightCyan: '#00ffff',
-                brightWhite: '#ffffff'
-            },
+            theme: {},
             fontSize: 14,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace'
         });
@@ -237,6 +268,8 @@
         term.loadAddon(fitAddon);
 
         term.open(document.getElementById('terminal'));
+        webSDK.onThemeChange(applyTheme);
+        applyTheme(webSDK.getTheme());
         
         term.write('Terminal - Click Connect to start an SSH session.\r\n');
 

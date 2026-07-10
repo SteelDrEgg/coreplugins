@@ -22,7 +22,8 @@ const webAssetsNamespace = "web-sdk"
 func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	host := panel.NewHost()
 	urls := map[string]string{
-		"web_sdk": "/assets/js/sdk.js",
+		"web_sdk":   "/assets/js/sdk.js",
+		"languages": "/assets/js/lang.json",
 	}
 	urlsJSON, err := json.Marshal(urls)
 	if err == nil {
@@ -45,9 +46,9 @@ func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (
 		Version: pluginVersion,
 		StaticMounts: []*panel.StaticMount{
 			{
-				Prefix: "/assets/js/",
+				Prefix: "/assets/js/sdk.js",
 				//Directory: "$PLUGIN_ROOT/assets",
-				Directory: "coreplugins/websdk/assets",
+				Directory: "coreplugins/websdk/assets/sdk.js",
 			},
 		},
 	}, nil
