@@ -46,9 +46,9 @@ func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (
 		Version: pluginVersion,
 		StaticMounts: []*panel.StaticMount{
 			{
-				Prefix: "/assets/js/sdk.js",
-				//Directory: "$PLUGIN_ROOT/assets",
-				Directory: "coreplugins/websdk/assets/sdk.js",
+				Prefix:    "/assets/js/sdk.js",
+				Directory: "$PLUGIN_ROOT/assets/sdk.js",
+				//Directory: "coreplugins/websdk/assets/sdk.js",
 			},
 		},
 	}, nil
