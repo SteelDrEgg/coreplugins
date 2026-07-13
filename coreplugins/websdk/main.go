@@ -17,16 +17,13 @@ func init() {
 
 type webAssetsPlugin struct{}
 
-const webAssetsNamespace = "web-assets"
+const webAssetsNamespace = "web-sdk"
 
 func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	host := panel.NewHost()
 	urls := map[string]string{
-		"css_prefix":    "/assets/css/",
-		"icon_prefix":   "/assets/icon/",
-		"vendor_prefix": "/assets/vendor/",
-		"culori":        "/assets/vendor/culori.js",
-		"scheme_css":    "/assets/css/scheme.css",
+		"web_sdk":   "/assets/js/sdk.js",
+		"languages": "/assets/js/lang.json",
 	}
 	urlsJSON, err := json.Marshal(urls)
 	if err == nil {
@@ -45,25 +42,14 @@ func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (
 	}
 
 	return &panel.RegisterReply{
-		Name:    "web-assets",
+		Name:    "web-sdk",
 		Version: pluginVersion,
 		StaticMounts: []*panel.StaticMount{
 			{
-				Prefix:    "/assets/css/",
-				Directory: "$PLUGIN_ROOT/assets/css",
+				Prefix:    "/assets/js/sdk.js",
+				Directory: "$PLUGIN_ROOT/assets/sdk.js",
+				//Directory: "coreplugins/websdk/assets/sdk.js",
 			},
-			{
-				Prefix:    "/assets/icon/",
-				Directory: "$PLUGIN_ROOT/assets/icon",
-			},
-			{
-				Prefix:    "/assets/vendor/",
-				Directory: "$PLUGIN_ROOT/assets/vendor",
-			},
-			//{
-			//	Prefix:    "/pages/login.html",
-			//	Directory: "$PLUGIN_ROOT/assets/icon/terminal.svg",
-			//},
 		},
 	}, nil
 }

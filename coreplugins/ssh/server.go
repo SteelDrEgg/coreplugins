@@ -64,19 +64,19 @@ func (s *sshServer) Register(ctx context.Context, req *panel.RegisterRequest) (*
 			{
 				Prefix:    "/ssh/pages/terminal.html",
 				Directory: "$PLUGIN_ROOT/pages/terminal.html",
-				Protected: true,
+				Access:    &panel.AccessPolicy{RequireAuth: true},
 			},
 			{
 				Prefix:    "/ssh/assets/",
 				Directory: "$PLUGIN_ROOT/assets",
-				Protected: true,
+				Access:    &panel.AccessPolicy{RequireAuth: true},
 			},
 		},
 		SocketNamespaces: []*panel.SocketNamespace{
 			{
-				Name:      socketNamespace,
-				Events:    []string{eventConnectSSH, eventTerminalInput, eventResize, eventDisconnect},
-				Protected: true,
+				Name:   socketNamespace,
+				Events: []string{eventConnectSSH, eventTerminalInput, eventResize, eventDisconnect},
+				Access: &panel.AccessPolicy{RequireAuth: true},
 			},
 		},
 	}, nil

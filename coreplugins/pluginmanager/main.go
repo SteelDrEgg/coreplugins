@@ -24,12 +24,12 @@ func (pluginManagerPlugin) Register(_ context.Context, _ *panel.RegisterRequest)
 			{
 				Prefix:    "/plugins/pages/plugins.html",
 				Directory: "$PLUGIN_ROOT/pages/plugins.html",
-				Protected: true,
+				Access:    &panel.AccessPolicy{RequireAuth: true},
 			},
 			{
 				Prefix:    "/plugins/icon/",
 				Directory: "$PLUGIN_ROOT/icon",
-				Protected: true,
+				Access:    &panel.AccessPolicy{RequireAuth: true},
 			},
 		},
 	}, nil

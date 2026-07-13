@@ -1,0 +1,7 @@
+Name: web-sdk
+Version: 0.1.0
+Type: wasm
+ContractVersion: 1
+Command: $PLUGIN_ROOT/web_sdk.wasm
+DisplayName: Web SDK
+Category: core

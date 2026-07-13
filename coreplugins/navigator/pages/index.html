@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/assets/css/scheme.css" type="text/css">
     <link rel="stylesheet" href="/assets/css/daisyui@5.css" type="text/css">
     <script src="/assets/css/tailwindcss@4"></script>
+    <script src="/assets/js/sdk.js"></script>
     <title>Panel</title>
     <style>
         html,
@@ -110,6 +111,10 @@
         .content-frame[hidden] {
             display: none;
         }
+
+        .settings-modal::backdrop {
+            background: oklch(0% 0 0 / 0.4);
+        }
     </style>
 </head>
 <body class="light bg-base-200 text-base-content">
@@ -133,14 +138,55 @@
                     <span class="loading loading-spinner loading-sm"></span>
                 </div>
             </nav>
-            <div class="grid shrink-0 place-items-center border-t border-base-300 p-2">
-                <a class="btn btn-square btn-ghost text-error" href="/pages/logout.html" title="Logout">
-                    <span class="mp-icon" style="--icon-url: url('/assets/icon/logout.svg')" aria-hidden="true"></span>
-                </a>
+            <div class="grid shrink-0 place-items-center gap-1 border-t border-base-300 p-2">
+                <button class="btn btn-square btn-ghost" id="settingsButton" type="button" title="Settings" aria-label="Settings">
+                    <span class="mp-icon" style="--icon-url: url('/assets/icon/cog-four.svg')" aria-hidden="true"></span>
+                </button>
             </div>
         </aside>
 
         <div class="fixed inset-0 z-30 hidden bg-neutral/40 max-md:block" id="sidebarOverlay" hidden></div>
+
+        <dialog class="modal settings-modal" id="settingsModal" aria-labelledby="settingsTitle">
+            <div class="modal-box max-w-md">
+                <div class="mb-5 flex items-center gap-3">
+                    <span class="mp-icon size-6 text-primary" style="--icon-url: url('/assets/icon/cog-four.svg')" aria-hidden="true"></span>
+                    <h2 class="text-lg font-semibold" id="settingsTitle">Settings</h2>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between gap-4 rounded-lg border border-base-300 p-4">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="mp-icon size-5 text-base-content/70" style="--icon-url: url('/assets/icon/circle-half-circle-solid.svg')" aria-hidden="true"></span>
+                            <div>
+                                <div class="font-medium">Theme</div>
+                                <div class="text-xs text-base-content/60" id="themeValue">Light</div>
+                            </div>
+                        </div>
+                        <input class="toggle toggle-primary" id="themeToggle" type="checkbox" aria-label="Toggle dark theme">
+                    </div>
+
+                    <label class="flex items-center gap-3 rounded-lg border border-base-300 p-4" for="languageSelect">
+                        <span class="mp-icon size-5 shrink-0 text-base-content/70" style="--icon-url: url('/assets/icon/i18n.svg')" aria-hidden="true"></span>
+                        <span class="min-w-0 flex-1">
+                            <span class="mb-1 block font-medium">Language</span>
+                            <select class="select select-bordered select-sm w-full" id="languageSelect" aria-label="Language"></select>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="modal-action">
+                    <a class="btn btn-error btn-outline" href="/pages/logout.html">
+                        <span class="mp-icon" style="--icon-url: url('/assets/icon/logout.svg')" aria-hidden="true"></span>
+                        Logout
+                    </a>
+                    <button class="btn" id="settingsCloseButton" type="button">Close</button>
+                </div>
+            </div>
+            <form class="modal-backdrop" method="dialog">
+                <button aria-label="Close settings">close</button>
+            </form>
+        </dialog>
 
         <main class="relative min-h-0 min-w-0 overflow-hidden">
             <div class="absolute inset-0 z-10 grid place-items-center bg-base-100 text-base-content/60" id="loadingOverlay">
@@ -153,12 +199,15 @@
 
     <script>
         const navigatorPluginName = "navigator";
+        const webSDK = window.webSDK;
         const state = {
             items: [],
             activeName: "",
             order: [],
             ignore: new Set(),
-            frames: new Map()
+            frames: new Map(),
+            allowedLanguages: ["en"],
+            languageDefinitions: {}
         };
 
         const els = {
@@ -168,7 +217,13 @@
             messageBox: document.getElementById("messageBox"),
             sidebar: document.getElementById("sidebar"),
             sidebarOverlay: document.getElementById("sidebarOverlay"),
-            mobileMenuButton: document.getElementById("mobileMenuButton")
+            mobileMenuButton: document.getElementById("mobileMenuButton"),
+            settingsButton: document.getElementById("settingsButton"),
+            settingsModal: document.getElementById("settingsModal"),
+            settingsCloseButton: document.getElementById("settingsCloseButton"),
+            themeToggle: document.getElementById("themeToggle"),
+            themeValue: document.getElementById("themeValue"),
+            languageSelect: document.getElementById("languageSelect")
         };
 
         function metadataValue(metadata, key) {
@@ -201,6 +256,76 @@
             const params = nav && nav.config && nav.config.params ? nav.config.params : {};
             state.order = splitList(params.order);
             state.ignore = new Set(splitList(params.ignore));
+            state.allowedLanguages = splitList(params.i18n || params.languages).map((code) => code.toLowerCase());
+            if (state.allowedLanguages.length === 0) state.allowedLanguages = ["en"];
+        }
+
+        async function loadLanguageDefinitions() {
+            if (Object.keys(state.languageDefinitions).length > 0) return;
+            const response = await fetch("/assets/js/lang.json", { credentials: "include" });
+            if (!response.ok) throw new Error("Failed to load language definitions.");
+            state.languageDefinitions = await response.json();
+        }
+
+        function languageDefinition(code) {
+            return state.languageDefinitions[code] || { name: code, nativeName: "" };
+        }
+
+        function languageLabel(code) {
+            const definition = languageDefinition(code);
+            if (definition.nativeName && definition.nativeName !== definition.name) {
+                return `${definition.name} (${definition.nativeName})`;
+            }
+            return definition.name;
+        }
+
+        function selectedLanguage() {
+            const saved = webSDK.getLanguage();
+            if (state.allowedLanguages.includes(saved)) return saved;
+            const browserLanguage = String(navigator.language || "").toLowerCase().split("-")[0];
+            if (state.allowedLanguages.includes(browserLanguage)) return browserLanguage;
+            return state.allowedLanguages[0];
+        }
+
+        function renderSettings() {
+            const language = selectedLanguage();
+            els.languageSelect.innerHTML = state.allowedLanguages.map((code) => `
+                <option value="${escapeHTML(code)}">${escapeHTML(languageLabel(code))}</option>
+            `).join("");
+            els.languageSelect.value = language;
+            applyLanguage(language);
+            els.themeToggle.checked = webSDK.getTheme() === "dark";
+            els.themeValue.textContent = els.themeToggle.checked ? "Dark" : "Light";
+        }
+
+        function applyTheme(theme) {
+            const normalized = theme === "dark" ? "dark" : "light";
+            document.body.classList.remove("light", "dark");
+            document.body.classList.add(normalized);
+            els.themeToggle.checked = normalized === "dark";
+            els.themeValue.textContent = normalized === "dark" ? "Dark" : "Light";
+        }
+
+        function applyLanguage(language) {
+            const normalized = String(language || "").toLowerCase();
+            if (state.allowedLanguages.includes(normalized)) {
+                document.documentElement.lang = normalized;
+                els.languageSelect.value = normalized;
+            }
+        }
+
+        function openSettings() {
+            renderSettings();
+            if (typeof els.settingsModal.showModal === "function") {
+                els.settingsModal.showModal();
+            } else {
+                els.settingsModal.setAttribute("open", "");
+            }
+        }
+
+        function closeSettings() {
+            if (typeof els.settingsModal.close === "function") els.settingsModal.close();
+            else els.settingsModal.removeAttribute("open");
         }
 
         function buildItems(discovered) {
@@ -373,6 +498,11 @@
                 const data = await api("/api/plugins");
                 const discovered = Array.isArray(data.discovered) ? data.discovered : [];
                 readNavigatorConfig(discovered);
+                try {
+                    await loadLanguageDefinitions();
+                } catch (_) {
+                    state.languageDefinitions = {};
+                }
                 state.items = buildItems(discovered);
 
                 const stillActive = state.items.some((item) => item.name === state.activeName);
@@ -381,6 +511,7 @@
                 }
                 pruneFrames(state.items);
 
+                renderSettings();
                 renderNav();
                 if (state.activeName) {
                     const item = state.items.find((candidate) => candidate.name === state.activeName);
@@ -412,6 +543,18 @@
 
         els.mobileMenuButton.addEventListener("click", openMobileNav);
         els.sidebarOverlay.addEventListener("click", closeMobileNav);
+        els.settingsButton.addEventListener("click", openSettings);
+        els.settingsCloseButton.addEventListener("click", closeSettings);
+        els.themeToggle.addEventListener("change", () => {
+            webSDK.setTheme(els.themeToggle.checked ? "dark" : "light");
+        });
+        els.languageSelect.addEventListener("change", () => {
+            webSDK.setLanguage(els.languageSelect.value);
+        });
+
+        webSDK.onThemeChange(applyTheme);
+        webSDK.onLanguageChange(applyLanguage);
+        applyTheme(webSDK.getTheme());
 
         window.addEventListener("resize", () => {
             if (window.innerWidth > 768) closeMobileNav();

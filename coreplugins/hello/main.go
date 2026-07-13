@@ -60,14 +60,16 @@ func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*p
 		Version: pluginVersion,
 		HttpRoutes: []*panel.HTTPRoute{
 			{Method: "GET", Pattern: "/hello"},
-			{Method: "GET", Pattern: "/hello/private", Protected: true},
-			{Method: "POST", Pattern: "/hello/greeting", Protected: true},
+			{Method: "GET", Pattern: "/hello/private", Access: &panel.AccessPolicy{RequireAuth: true}},
+			{Method: "POST", Pattern: "/hello/greeting", Access: &panel.AccessPolicy{RequireAuth: true}},
 		},
 		SocketNamespaces: []*panel.SocketNamespace{
 			{
-				Name:            "/hello",
-				Events:          []string{"ping", "ping_private"},
-				ProtectedEvents: []string{"ping_private"},
+				Name:   "/hello",
+				Events: []string{"ping", "ping_private"},
+				EventAccess: map[string]*panel.AccessPolicy{
+					"ping_private": {RequireAuth: true},
+				},
 			},
 		},
 	}, nil
