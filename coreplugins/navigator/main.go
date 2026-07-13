@@ -27,9 +27,9 @@ func (navigatorPlugin) Register(_ context.Context, _ *panel.RegisterRequest) (*p
 		Version: pluginVersion,
 		HttpRoutes: []*panel.HTTPRoute{
 			{
-				Method:    http.MethodGet,
-				Pattern:   "/",
-				Protected: true,
+				Method:  http.MethodGet,
+				Pattern: "/",
+				Access:  &panel.AccessPolicy{RequireAuth: true},
 			},
 		},
 	}, nil
