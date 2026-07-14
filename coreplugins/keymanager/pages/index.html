@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/assets/css/scheme.css">
+    <link rel="stylesheet" href="/assets/css/daisyui@5.css" type="text/css">
+    <script src="/assets/css/tailwindcss@4"></script>
+    <script src="/assets/js/sdk.js"></script>
+    <title>Secrets</title>
+    <style>
+        .icon {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            background: currentColor;
+            mask: var(--icon-url) no-repeat center;
+            mask-size: contain;
+            -webkit-mask: var(--icon-url) no-repeat center;
+            -webkit-mask-size: contain;
+        }
+
+        .icon.key {
+            --icon-url: url("/keys/icon/key.svg");
+        }
+
+        .action-menu {
+            position: fixed;
+        }
+    </style>
+</head>
+<body class="light min-h-screen bg-base-200 text-base-content">
+    <main class="mx-auto grid w-full max-w-[1320px] gap-4 px-4 py-6 sm:py-8">
+        <header class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-content" aria-hidden="true">
+                    <span class="icon key size-5"></span>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-xl font-semibold">Secrets</h1>
+                    <p class="truncate text-sm text-base-content/60">Centralized secrets manager</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="btn btn-primary" id="refreshBtn" type="button">Refresh</button>
+            </div>
+        </header>
+
+        <div id="message" class="alert hidden" role="status"></div>
+
+        <section class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div class="card min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
+                <div class="flex flex-col gap-3 border-b border-base-300 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="font-semibold">Secrets</h2>
+<!--                        <p class="text-sm text-base-content/60"></p>-->
+                    </div>
+                    <input class="input w-full sm:w-64" id="filter" type="search" placeholder="Filter by name">
+                </div>
+                <div id="keyList" class="min-w-0 overflow-x-auto">
+                    <div class="grid min-h-48 place-items-center p-6 text-base-content/60">Loading...</div>
+                </div>
+            </div>
+
+            <div class="grid gap-4">
+                <div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
+                    <div class="stat-title">Managed secrets</div>
+                    <div class="stat-value text-2xl" id="keyCount">0</div>
+<!--                    <div class="stat-desc"></div>-->
+                </div>
+                <aside class="card h-fit min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
+                    <div class="border-b border-base-300 p-4">
+                        <h2 class="font-semibold" id="formTitle">Add secret</h2>
+<!--                        <p class="mt-1 text-sm text-base-content/60"></p>-->
+                    </div>
+                    <form class="grid gap-4 p-4" id="secretForm">
+                        <label class="grid gap-2">
+                            <span class="text-sm font-semibold text-base-content/70">Name</span>
+                            <input class="input w-full font-mono" id="name" required maxlength="128" placeholder="database/password">
+                        </label>
+                        <label class="grid gap-2">
+                            <span class="text-sm font-semibold text-base-content/70">Description</span>
+                            <input class="input w-full" id="description" maxlength="240" placeholder="Optional description">
+                        </label>
+                        <label class="grid gap-2">
+                            <span class="text-sm font-semibold text-base-content/70">Value</span>
+                            <textarea class="textarea min-h-32 w-full font-mono text-sm" id="value" required autocomplete="off" placeholder="Secret value"></textarea>
+                        </label>
+                        <label class="grid gap-2">
+                            <span class="text-sm font-semibold text-base-content/70">Allowed plugins</span>
+                            <textarea class="textarea min-h-24 w-full font-mono text-sm" id="allowedPlugins" placeholder="one-plugin-per-line"></textarea>
+                            <span class="text-xs text-base-content/60">Empty means nobody can access this secret.</span>
+                        </label>
+                        <div class="flex flex-wrap justify-end gap-2">
+                            <button class="btn" id="cancelBtn" type="button">Cancel</button>
+                            <button class="btn btn-primary" id="saveBtn" type="submit">Add secret</button>
+                        </div>
+                    </form>
+                </aside>
+            </div>
+        </section>
+    </main>
+
+    <dialog class="modal" id="secretDialog">
+        <div class="modal-box max-w-2xl">
+            <h3 class="text-lg font-semibold" id="dialogTitle">Secret</h3>
+            <p class="mt-2 text-sm text-warning" id="dialogWarning">Treat this value as sensitive.</p>
+            <textarea class="textarea mt-4 min-h-40 w-full select-all font-mono text-sm" id="dialogValue" readonly></textarea>
+            <div class="modal-action">
+                <button class="btn" id="copyBtn" type="button">Copy</button>
+                <button class="btn btn-primary" id="closeDialogBtn" type="button">Close</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <ul class="action-menu menu hidden z-50 w-32 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg" id="actionMenu" role="menu">
+        <li><button type="button" data-menu-action="edit">Edit</button></li>
+        <li><button type="button" data-menu-action="reveal">Reveal</button></li>
+        <li><button type="button" class="text-error" data-menu-action="delete">Delete</button></li>
+    </ul>
+
+    <script>
+        const webSDK = window.webSDK;
+        const state = { keys: [], editing: null, actionMenuName: null, actionMenuButton: null };
+        const els = {
+            message: document.getElementById("message"),
+            refreshBtn: document.getElementById("refreshBtn"),
+            keyCount: document.getElementById("keyCount"),
+            keyList: document.getElementById("keyList"),
+            filter: document.getElementById("filter"),
+            form: document.getElementById("secretForm"),
+            formTitle: document.getElementById("formTitle"),
+            name: document.getElementById("name"),
+            description: document.getElementById("description"),
+            value: document.getElementById("value"),
+            allowedPlugins: document.getElementById("allowedPlugins"),
+            cancelBtn: document.getElementById("cancelBtn"),
+            saveBtn: document.getElementById("saveBtn"),
+            dialog: document.getElementById("secretDialog"),
+            dialogTitle: document.getElementById("dialogTitle"),
+            dialogWarning: document.getElementById("dialogWarning"),
+            dialogValue: document.getElementById("dialogValue"),
+            copyBtn: document.getElementById("copyBtn"),
+            closeDialogBtn: document.getElementById("closeDialogBtn"),
+            actionMenu: document.getElementById("actionMenu")
+        };
+
+        function applyTheme(theme) {
+            document.body.classList.remove("light", "dark");
+            document.body.classList.add(theme === "dark" ? "dark" : "light");
+        }
+
+        if (webSDK) {
+            webSDK.onThemeChange(applyTheme);
+            applyTheme(webSDK.getTheme());
+        }
+
+        function escapeHTML(value) {
+            return String(value == null ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        async function api(path, options = {}) {
+            const response = await fetch(path, Object.assign({
+                credentials: "include",
+                headers: { "Accept": "application/json", "Content-Type": "application/json" }
+            }, options));
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (_) {
+                throw new Error("Invalid server response");
+            }
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || "Request failed");
+            }
+            return payload;
+        }
+
+        function showMessage(text, kind = "info") {
+            els.message.textContent = text || "";
+            const className = kind === "error" ? "alert alert-error" : kind === "success" ? "alert alert-success" : "alert alert-info";
+            els.message.className = text ? className : "alert hidden";
+        }
+
+        function setBusy(busy) {
+            document.querySelectorAll("button, input, textarea").forEach((element) => {
+                element.disabled = busy;
+            });
+            els.refreshBtn.disabled = busy;
+        }
+
+        function filteredKeys() {
+            const query = els.filter.value.trim().toLowerCase();
+            return state.keys.filter((item) => !query || item.name.toLowerCase().includes(query));
+        }
+
+        function renderKeys() {
+            closeActionMenu();
+            const keys = filteredKeys();
+            els.keyCount.textContent = String(state.keys.length);
+            if (!keys.length) {
+                els.keyList.innerHTML = '<div class="grid min-h-48 place-items-center p-6 text-center text-base-content/60">No secrets found</div>';
+                return;
+            }
+            els.keyList.innerHTML = `
+                <table class="table table-zebra">
+                    <thead><tr><th>Name</th><th>Allowed plugins</th><th>Updated</th></tr></thead>
+                    <tbody>${keys.map((item) => `
+                        <tr>
+                            <td class="max-w-64">
+                                <div class="flex min-w-0 items-center gap-2">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="truncate font-mono text-sm" title="${escapeHTML(item.name)}">${escapeHTML(item.name)}</div>
+                                        <div class="truncate text-xs text-base-content/60">${escapeHTML(item.description || "No description")}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="max-w-52"><div class="truncate text-sm" title="${escapeHTML((item.allowed_plugins || []).join(", "))}">${escapeHTML((item.allowed_plugins || []).join(", ") || "None")}</div></td>
+                            <td class="whitespace-nowrap text-xs text-base-content/60">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span>${escapeHTML(item.updated_at || "-")}</span>
+                                    <button type="button" class="btn btn-ghost btn-xs px-2" data-action-menu data-name="${escapeHTML(item.name)}" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for ${escapeHTML(item.name)}">⋮</button>
+                                </div>
+                            </td>
+                        </tr>`).join("")}</tbody>
+                </table>`;
+            els.keyList.querySelectorAll("[data-action-menu]").forEach((button) => button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                toggleActionMenu(button);
+            }));
+        }
+
+        function closeActionMenu() {
+            if (state.actionMenuButton) {
+                state.actionMenuButton.setAttribute("aria-expanded", "false");
+            }
+            state.actionMenuName = null;
+            state.actionMenuButton = null;
+            els.actionMenu.classList.add("hidden");
+        }
+
+        function toggleActionMenu(button) {
+            if (state.actionMenuButton === button) {
+                closeActionMenu();
+                return;
+            }
+
+            closeActionMenu();
+            state.actionMenuName = button.dataset.name;
+            state.actionMenuButton = button;
+            button.setAttribute("aria-expanded", "true");
+            els.actionMenu.classList.remove("hidden");
+            els.actionMenu.style.visibility = "hidden";
+
+            const buttonRect = button.getBoundingClientRect();
+            const menuWidth = els.actionMenu.offsetWidth;
+            const menuHeight = els.actionMenu.offsetHeight;
+            const left = Math.max(8, Math.min(buttonRect.right - menuWidth, window.innerWidth - menuWidth - 8));
+            const belowTop = buttonRect.bottom + 4;
+            const top = belowTop + menuHeight <= window.innerHeight - 8
+                ? belowTop
+                : Math.max(8, buttonRect.top - menuHeight - 4);
+
+            els.actionMenu.style.left = `${left}px`;
+            els.actionMenu.style.top = `${top}px`;
+            els.actionMenu.style.visibility = "visible";
+        }
+
+        async function loadKeys(showLoadedMessage = false) {
+            setBusy(true);
+            try {
+                const payload = await api("/keys");
+                state.keys = payload.keys || [];
+                renderKeys();
+                if (showLoadedMessage) {
+                    showMessage("List refreshed", "success");
+                }
+            } catch (error) {
+                showMessage(error.message, "error");
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        function clearForm() {
+            state.editing = null;
+            els.form.reset();
+            els.name.disabled = false;
+            els.value.placeholder = "Secret value";
+            els.formTitle.textContent = "Add secret";
+            els.saveBtn.textContent = "Add secret";
+        }
+
+        function editKey(name) {
+            const item = state.keys.find((candidate) => candidate.name === name);
+            if (!item) return;
+            state.editing = name;
+            els.formTitle.textContent = "Edit secret";
+            els.saveBtn.textContent = "Update secret";
+            els.name.value = item.name;
+            els.name.disabled = true;
+            els.description.value = item.description || "";
+            els.value.value = "*";
+            els.value.placeholder = "Leave * unchanged, or enter a new value to replace it";
+            els.allowedPlugins.value = (item.allowed_plugins || []).join("\n");
+            els.value.focus();
+        }
+
+        async function handleAction(action, name) {
+            if (action === "edit") {
+                editKey(name);
+                return;
+            }
+            if (action === "reveal") {
+                try {
+                    const payload = await api("/keys/reveal", { method: "POST", body: JSON.stringify({ name }) });
+                    showDialog(`Secret: ${name}`, payload.value, "HTTP is not safe, this secret may be compromised");
+                } catch (error) {
+                    showMessage(error.message, "error");
+                }
+                return;
+            }
+            if (action === "delete") {
+                if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+                try {
+                    await api("/keys/delete", { method: "POST", body: JSON.stringify({ name }) });
+                    showMessage(`Deleted ${name}`, "success");
+                    if (state.editing === name) clearForm();
+                    await loadKeys();
+                } catch (error) {
+                    showMessage(error.message, "error");
+                }
+            }
+        }
+
+        function showDialog(title, value, warning) {
+            els.dialogTitle.textContent = title;
+            els.dialogWarning.textContent = warning;
+            els.dialogValue.value = value || "";
+            els.dialog.showModal();
+        }
+
+        els.form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const value = els.value.value;
+            if (!value && !window.confirm("Save an empty value?")) return;
+            const allowedPlugins = els.allowedPlugins.value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+            const name = els.name.value.trim();
+            const updating = state.editing !== null;
+            setBusy(true);
+            try {
+                await api(updating ? "/keys/update" : "/keys/add", {
+                    method: "POST",
+                    body: JSON.stringify({ name, description: els.description.value.trim(), value, allowed_plugins: allowedPlugins })
+                });
+                showMessage(`${updating ? "Updated" : "Added"} ${name}`, "success");
+                clearForm();
+                await loadKeys();
+            } catch (error) {
+                showMessage(error.message, "error");
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        els.cancelBtn.addEventListener("click", clearForm);
+        els.refreshBtn.addEventListener("click", () => loadKeys(true));
+        els.filter.addEventListener("input", renderKeys);
+        els.actionMenu.addEventListener("click", (event) => {
+            const button = event.target.closest("[data-menu-action]");
+            if (!button || !state.actionMenuName) return;
+            const action = button.dataset.menuAction;
+            const name = state.actionMenuName;
+            closeActionMenu();
+            handleAction(action, name);
+        });
+        document.addEventListener("click", (event) => {
+            if (!event.target.closest("[data-action-menu]") && !event.target.closest("#actionMenu")) {
+                closeActionMenu();
+            }
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeActionMenu();
+        });
+        window.addEventListener("resize", closeActionMenu);
+        window.addEventListener("scroll", closeActionMenu, true);
+        els.closeDialogBtn.addEventListener("click", () => els.dialog.close());
+        els.dialog.addEventListener("close", () => { els.dialogValue.value = ""; });
+        els.copyBtn.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(els.dialogValue.value);
+                showMessage("Copied to clipboard", "success");
+            } catch (_) {
+                els.dialogValue.select();
+                showMessage("Clipboard access failed; the value is selected for manual copying", "info");
+            }
+        });
+        clearForm();
+        loadKeys();
+    </script>
+</body>
+</html>
