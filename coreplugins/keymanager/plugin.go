@@ -23,6 +23,9 @@ const (
 	topicSecretGet = "secret-manager.secret.get"
 
 	maxSecretSize = 1 << 20
+
+	secretEncryptionIdentity = "identity"
+	secretEncryptionScrypt   = "scrypt"
 )
 
 type keyManagerPlugin struct {
@@ -37,6 +40,7 @@ type secretMeta struct {
 	Description    string   `json:"description,omitempty"`
 	AllowedPlugins []string `json:"allowed_plugins"`
 	UpdatedAt      string   `json:"updated_at"`
+	Encryption     string   `json:"encryption,omitempty"`
 }
 
 type secretGetRequest struct {
@@ -110,8 +114,15 @@ func (p *keyManagerPlugin) HandlePluginMessage(_ context.Context, req *panel.Plu
 	if !p.allowed(payload.Name, req.GetSource()) {
 		return pluginMessageError("plugin is not allowed to access this secret")
 	}
+	encryption, err := p.secretEncryption(payload.Name)
+	if err != nil {
+		return pluginMessageError(err.Error())
+	}
+	if encryption == secretEncryptionScrypt {
+		return pluginMessageError("secret requires a passphrase")
+	}
 
-	value, err := p.decryptSecret(payload.Name)
+	value, err := p.decryptSecret(payload.Name, "")
 	if err != nil {
 		return pluginMessageError(err.Error())
 	}

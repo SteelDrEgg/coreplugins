@@ -49,6 +49,36 @@ func (p *keyManagerPlugin) secretCiphertext(name string) (string, bool) {
 	return ciphertext, exists
 }
 
+func (p *keyManagerPlugin) secretEncryption(name string) (string, error) {
+	p.mu.RLock()
+	params := cloneParams(p.params)
+	p.mu.RUnlock()
+	return secretEncryptionFromParams(params, name)
+}
+
+func secretEncryptionFromParams(params map[string]string, name string) (string, error) {
+	raw := params[paramMetaPrefix+name]
+	if raw == "" {
+		return secretEncryptionIdentity, nil
+	}
+
+	var meta secretMeta
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return "", fmt.Errorf("invalid metadata for secret %q", name)
+	}
+	return normalizeSecretEncryption(meta.Encryption)
+}
+
+func normalizeSecretEncryption(encryption string) (string, error) {
+	if encryption == "" {
+		return secretEncryptionIdentity, nil
+	}
+	if encryption != secretEncryptionIdentity && encryption != secretEncryptionScrypt {
+		return "", fmt.Errorf("unsupported secret encryption %q", encryption)
+	}
+	return encryption, nil
+}
+
 func listSecretMeta(params map[string]string) ([]secretMeta, error) {
 	keys := make([]string, 0)
 	for key := range params {
@@ -69,6 +99,11 @@ func listSecretMeta(params map[string]string) ([]secretMeta, error) {
 				return nil, fmt.Errorf("invalid metadata for secret %q", name)
 			}
 		}
+		encryption, err := normalizeSecretEncryption(meta.Encryption)
+		if err != nil {
+			return nil, fmt.Errorf("invalid encryption for secret %q: %w", name, err)
+		}
+		meta.Encryption = encryption
 		plugins, err := decodePlugins(params[paramPolicyPrefix+name])
 		if err != nil {
 			return nil, fmt.Errorf("invalid access policy for secret %q", name)

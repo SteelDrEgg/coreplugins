@@ -76,20 +76,29 @@
                     <form class="grid gap-4 p-4" id="secretForm">
                         <label class="grid gap-2">
                             <span class="text-sm font-semibold text-base-content/70">Name</span>
-                            <input class="input w-full font-mono" id="name" required maxlength="128" placeholder="database/password">
+                            <input class="input w-full font-mono" id="name" required maxlength="128" placeholder="Unique identifier">
                         </label>
                         <label class="grid gap-2">
-                            <span class="text-sm font-semibold text-base-content/70">Description</span>
-                            <input class="input w-full" id="description" maxlength="240" placeholder="Optional description">
+                            <span class="text-sm font-semibold text-base-content/70">Description (Optional)</span>
+                            <input class="input w-full" id="description" maxlength="240" placeholder="Set an alias or comment">
                         </label>
                         <label class="grid gap-2">
                             <span class="text-sm font-semibold text-base-content/70">Value</span>
                             <textarea class="textarea min-h-32 w-full font-mono text-sm" id="value" required autocomplete="off" placeholder="Secret value"></textarea>
                         </label>
                         <label class="grid gap-2">
+                            <span class="text-sm font-semibold text-base-content/70">Passphrase (optional)</span>
+                            <input class="input w-full font-mono" id="passphrase" type="password" autocomplete="new-password" placeholder="Used to encrypt secret">
+                            <span class="text-xs text-base-content/60">
+                                Don't set if you're not sure that you need it.<br>
+                                It takes extra time to decrypt<br>
+                                You cannot retrieve secret if you forget passphrase
+                            </span>
+                        </label>
+                        <label class="grid gap-2">
                             <span class="text-sm font-semibold text-base-content/70">Allowed plugins</span>
                             <textarea class="textarea min-h-24 w-full font-mono text-sm" id="allowedPlugins" placeholder="one-plugin-per-line"></textarea>
-                            <span class="text-xs text-base-content/60">Empty means nobody can access this secret.</span>
+                            <span class="text-xs text-base-content/60">Empty means no plugin can access this secret.</span>
                         </label>
                         <div class="flex flex-wrap justify-end gap-2">
                             <button class="btn" id="cancelBtn" type="button">Cancel</button>
@@ -122,7 +131,7 @@
 
     <script>
         const webSDK = window.webSDK;
-        const state = { keys: [], editing: null, actionMenuName: null, actionMenuButton: null };
+        const state = { keys: [], editing: null, actionMenuName: null, actionMenuButton: null, busyCount: 0, previousMessage: null };
         const els = {
             message: document.getElementById("message"),
             refreshBtn: document.getElementById("refreshBtn"),
@@ -134,6 +143,7 @@
             name: document.getElementById("name"),
             description: document.getElementById("description"),
             value: document.getElementById("value"),
+            passphrase: document.getElementById("passphrase"),
             allowedPlugins: document.getElementById("allowedPlugins"),
             cancelBtn: document.getElementById("cancelBtn"),
             saveBtn: document.getElementById("saveBtn"),
@@ -184,15 +194,37 @@
 
         function showMessage(text, kind = "info") {
             els.message.textContent = text || "";
-            const className = kind === "error" ? "alert alert-error" : kind === "success" ? "alert alert-success" : "alert alert-info";
+            const className = kind === "error" ? "alert alert-error" : kind === "success" ? "alert alert-success" : kind === "warning" ? "alert alert-warning" : "alert alert-info";
             els.message.className = text ? className : "alert hidden";
+            if (text) {
+                els.message.dataset.kind = kind;
+            } else {
+                delete els.message.dataset.kind;
+            }
         }
 
         function setBusy(busy) {
+            if (busy) {
+                if (state.busyCount === 0) {
+                    state.previousMessage = { text: els.message.textContent, kind: els.message.dataset.kind || "info" };
+                    showMessage("Waiting for server…", "warning");
+                }
+                state.busyCount += 1;
+            } else if (state.busyCount > 0) {
+                state.busyCount -= 1;
+                if (state.busyCount === 0) {
+                    if (els.message.dataset.kind === "warning") {
+                        showMessage(state.previousMessage.text, state.previousMessage.kind);
+                    }
+                    state.previousMessage = null;
+                }
+            }
+
+            const isBusy = state.busyCount > 0;
             document.querySelectorAll("button, input, textarea").forEach((element) => {
-                element.disabled = busy;
+                element.disabled = isBusy;
             });
-            els.refreshBtn.disabled = busy;
+            els.refreshBtn.disabled = isBusy;
         }
 
         function filteredKeys() {
@@ -293,6 +325,7 @@
             els.form.reset();
             els.name.disabled = false;
             els.value.placeholder = "Secret value";
+            els.passphrase.placeholder = "Used to encrypt secret";
             els.formTitle.textContent = "Add secret";
             els.saveBtn.textContent = "Add secret";
         }
@@ -308,6 +341,10 @@
             els.description.value = item.description || "";
             els.value.value = "*";
             els.value.placeholder = "Leave * unchanged, or enter a new value to replace it";
+            els.passphrase.value = "";
+            els.passphrase.placeholder = item.encryption === "scrypt"
+                ? "••••••••••••"
+                : "Enter a passphrase to protect the new value";
             els.allowedPlugins.value = (item.allowed_plugins || []).join("\n");
             els.value.focus();
         }
@@ -318,23 +355,38 @@
                 return;
             }
             if (action === "reveal") {
+                let waiting = false;
                 try {
-                    const payload = await api("/keys/reveal", { method: "POST", body: JSON.stringify({ name }) });
+                    const item = state.keys.find((candidate) => candidate.name === name);
+                    let passphrase = "";
+                    if (item && item.encryption === "scrypt") {
+                        passphrase = window.prompt(`Passphrase for ${name}`);
+                        if (passphrase === null) return;
+                    }
+                    setBusy(true);
+                    waiting = true;
+                    const payload = await api("/keys/reveal", { method: "POST", body: JSON.stringify({ name, passphrase }) });
                     showDialog(`Secret: ${name}`, payload.value, "HTTP is not safe, this secret may be compromised");
+                    showMessage(`Revealed ${name}`, "success");
                 } catch (error) {
                     showMessage(error.message, "error");
+                } finally {
+                    if (waiting) setBusy(false);
                 }
                 return;
             }
             if (action === "delete") {
                 if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+                setBusy(true);
                 try {
                     await api("/keys/delete", { method: "POST", body: JSON.stringify({ name }) });
-                    showMessage(`Deleted ${name}`, "success");
                     if (state.editing === name) clearForm();
                     await loadKeys();
+                    showMessage(`Deleted ${name}`, "success");
                 } catch (error) {
                     showMessage(error.message, "error");
+                } finally {
+                    setBusy(false);
                 }
             }
         }
@@ -357,11 +409,11 @@
             try {
                 await api(updating ? "/keys/update" : "/keys/add", {
                     method: "POST",
-                    body: JSON.stringify({ name, description: els.description.value.trim(), value, allowed_plugins: allowedPlugins })
+                    body: JSON.stringify({ name, description: els.description.value.trim(), value, passphrase: els.passphrase.value, allowed_plugins: allowedPlugins })
                 });
-                showMessage(`${updating ? "Updated" : "Added"} ${name}`, "success");
                 clearForm();
                 await loadKeys();
+                showMessage(`${updating ? "Updated" : "Added"} ${name}`, "success");
             } catch (error) {
                 showMessage(error.message, "error");
             } finally {

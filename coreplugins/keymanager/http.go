@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -16,11 +17,17 @@ type secretWriteRequest struct {
 	Name           string   `json:"name"`
 	Description    string   `json:"description"`
 	Value          string   `json:"value"`
+	Passphrase     string   `json:"passphrase"`
 	AllowedPlugins []string `json:"allowed_plugins"`
 }
 
 type secretNameRequest struct {
 	Name string `json:"name"`
+}
+
+type secretRevealRequest struct {
+	Name       string `json:"name"`
+	Passphrase string `json:"passphrase"`
 }
 
 func (p *keyManagerPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*panel.HTTPResponse, error) {
@@ -98,14 +105,22 @@ func (p *keyManagerPlugin) writeResponse(ctx context.Context, body []byte, updat
 	}
 
 	var ciphertext string
+	encryption := secretEncryptionIdentity
 	if update && payload.Value == "*" {
+		if payload.Passphrase != "" {
+			return jsonResponse(http.StatusBadRequest, map[string]any{"success": false, "message": "You must edit both value and passphrase"})
+		}
 		var ok bool
 		ciphertext, ok = p.secretCiphertext(payload.Name)
 		if !ok {
 			return jsonResponse(http.StatusNotFound, map[string]any{"success": false, "message": "Secret not found"})
 		}
+		encryption, err = p.secretEncryption(payload.Name)
+		if err != nil {
+			return jsonResponse(http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
+		}
 	} else {
-		ciphertext, err = p.encryptSecret(payload.Value)
+		ciphertext, encryption, err = p.encryptSecret(payload.Value, payload.Passphrase)
 		if err != nil {
 			return jsonResponse(http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
 		}
@@ -116,6 +131,7 @@ func (p *keyManagerPlugin) writeResponse(ctx context.Context, body []byte, updat
 		Description:    strings.TrimSpace(payload.Description),
 		AllowedPlugins: allowedPlugins,
 		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
+		Encryption:     encryption,
 	}
 	metaJSON, err := json.Marshal(meta)
 	if err != nil {
@@ -142,7 +158,7 @@ func (p *keyManagerPlugin) writeResponse(ctx context.Context, body []byte, updat
 }
 
 func (p *keyManagerPlugin) revealResponse(body []byte) (*panel.HTTPResponse, error) {
-	var payload secretNameRequest
+	var payload secretRevealRequest
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return jsonResponse(http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
 	}
@@ -150,9 +166,13 @@ func (p *keyManagerPlugin) revealResponse(body []byte) (*panel.HTTPResponse, err
 		return jsonResponse(http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
 	}
 
-	value, err := p.decryptSecret(payload.Name)
+	value, err := p.decryptSecret(payload.Name, payload.Passphrase)
 	if err != nil {
-		return jsonResponse(http.StatusNotFound, map[string]any{"success": false, "message": err.Error()})
+		status := http.StatusNotFound
+		if errors.Is(err, errPassphraseRequired) || errors.Is(err, errInvalidPassphrase) {
+			status = http.StatusBadRequest
+		}
+		return jsonResponse(status, map[string]any{"success": false, "message": err.Error()})
 	}
 	return jsonResponse(http.StatusOK, map[string]any{
 		"success": true,
