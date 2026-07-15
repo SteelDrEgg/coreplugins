@@ -12,7 +12,7 @@ import (
 	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
 )
 
-func (p *keyManagerPlugin) patchParams(ctx context.Context, set map[string]string, deleteKeys []string) error {
+func (p *secretManagerPlugin) patchParams(ctx context.Context, set map[string]string, deleteKeys []string) error {
 	reply, err := panel.NewHost().PatchParams(ctx, &panel.ParamsPatchRequest{Set: set, Delete: deleteKeys})
 	if err != nil {
 		return err
@@ -35,21 +35,21 @@ func (p *keyManagerPlugin) patchParams(ctx context.Context, set map[string]strin
 	return nil
 }
 
-func (p *keyManagerPlugin) secretExists(name string) bool {
+func (p *secretManagerPlugin) secretExists(name string) bool {
 	p.mu.RLock()
 	_, exists := p.params[paramSecretPrefix+name]
 	p.mu.RUnlock()
 	return exists
 }
 
-func (p *keyManagerPlugin) secretCiphertext(name string) (string, bool) {
+func (p *secretManagerPlugin) secretCiphertext(name string) (string, bool) {
 	p.mu.RLock()
 	ciphertext, exists := p.params[paramSecretPrefix+name]
 	p.mu.RUnlock()
 	return ciphertext, exists
 }
 
-func (p *keyManagerPlugin) secretEncryption(name string) (string, error) {
+func (p *secretManagerPlugin) secretEncryption(name string) (string, error) {
 	p.mu.RLock()
 	params := cloneParams(p.params)
 	p.mu.RUnlock()

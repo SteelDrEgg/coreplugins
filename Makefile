@@ -54,7 +54,7 @@ plugin-manager:
 	$(MAKE) -C coreplugins/pluginmanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
 
 secret-manager:
-	$(MAKE) -C coreplugins/keymanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+	$(MAKE) -C coreplugins/secretmanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
 
 ssh:
 	$(MAKE) -C coreplugins/ssh package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)

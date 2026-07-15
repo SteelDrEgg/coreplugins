@@ -18,7 +18,7 @@ var (
 	errInvalidPassphrase  = errors.New("invalid passphrase")
 )
 
-func (p *keyManagerPlugin) encryptSecret(value, passphrase string) (string, string, error) {
+func (p *secretManagerPlugin) encryptSecret(value, passphrase string) (string, string, error) {
 	var recipient age.Recipient
 	encryption := secretEncryptionIdentity
 	if passphrase != "" {
@@ -52,7 +52,7 @@ func (p *keyManagerPlugin) encryptSecret(value, passphrase string) (string, stri
 	return base64.StdEncoding.EncodeToString(encrypted.Bytes()), encryption, nil
 }
 
-func (p *keyManagerPlugin) decryptSecret(name, passphrase string) (string, error) {
+func (p *secretManagerPlugin) decryptSecret(name, passphrase string) (string, error) {
 	p.mu.RLock()
 	params := cloneParams(p.params)
 	identity := p.identity
@@ -107,7 +107,7 @@ func (p *keyManagerPlugin) decryptSecret(name, passphrase string) (string, error
 	return string(cleartext), nil
 }
 
-func (p *keyManagerPlugin) allowed(name, plugin string) bool {
+func (p *secretManagerPlugin) allowed(name, plugin string) bool {
 	plugin = strings.TrimSpace(plugin)
 	if plugin == "" {
 		return false

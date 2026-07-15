@@ -30,7 +30,7 @@ type secretRevealRequest struct {
 	Passphrase string `json:"passphrase"`
 }
 
-func (p *keyManagerPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*panel.HTTPResponse, error) {
 	path := strings.TrimRight(req.GetPath(), "/")
 	if path == "" {
 		path = "/"
@@ -55,7 +55,7 @@ func (p *keyManagerPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPReques
 	}
 }
 
-func (p *keyManagerPlugin) listResponse() (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) listResponse() (*panel.HTTPResponse, error) {
 	p.mu.RLock()
 	params := cloneParams(p.params)
 	p.mu.RUnlock()
@@ -74,15 +74,15 @@ func (p *keyManagerPlugin) listResponse() (*panel.HTTPResponse, error) {
 	})
 }
 
-func (p *keyManagerPlugin) addResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) addResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
 	return p.writeResponse(ctx, body, false)
 }
 
-func (p *keyManagerPlugin) updateResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) updateResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
 	return p.writeResponse(ctx, body, true)
 }
 
-func (p *keyManagerPlugin) writeResponse(ctx context.Context, body []byte, update bool) (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) writeResponse(ctx context.Context, body []byte, update bool) (*panel.HTTPResponse, error) {
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 
@@ -157,7 +157,7 @@ func (p *keyManagerPlugin) writeResponse(ctx context.Context, body []byte, updat
 	return jsonResponse(status, map[string]any{"success": true, "name": payload.Name})
 }
 
-func (p *keyManagerPlugin) revealResponse(body []byte) (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) revealResponse(body []byte) (*panel.HTTPResponse, error) {
 	var payload secretRevealRequest
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return jsonResponse(http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
@@ -181,7 +181,7 @@ func (p *keyManagerPlugin) revealResponse(body []byte) (*panel.HTTPResponse, err
 	})
 }
 
-func (p *keyManagerPlugin) deleteResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
+func (p *secretManagerPlugin) deleteResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 

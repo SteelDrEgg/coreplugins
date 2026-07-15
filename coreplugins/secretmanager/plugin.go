@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	paramIdentity     = "keymgr.identity"
-	paramSecretPrefix = "keymgr.secret."
-	paramPolicyPrefix = "keymgr.policy."
-	paramMetaPrefix   = "keymgr.meta."
+	paramIdentity     = "secretmgr.identity"
+	paramSecretPrefix = "secretmgr.secret."
+	paramPolicyPrefix = "secretmgr.policy."
+	paramMetaPrefix   = "secretmgr.meta."
 
 	topicSecretGet = "secret-manager.secret.get"
 
@@ -28,7 +28,7 @@ const (
 	secretEncryptionScrypt   = "scrypt"
 )
 
-type keyManagerPlugin struct {
+type secretManagerPlugin struct {
 	mu       sync.RWMutex
 	writeMu  sync.Mutex
 	params   map[string]string
@@ -47,7 +47,7 @@ type secretGetRequest struct {
 	Name string `json:"name"`
 }
 
-func (p *keyManagerPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
+func (p *secretManagerPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	params := cloneParams(req.GetParams())
 	identityText := strings.TrimSpace(params[paramIdentity])
 	if identityText == "" {
@@ -99,7 +99,7 @@ func (p *keyManagerPlugin) Register(ctx context.Context, req *panel.RegisterRequ
 	}, nil
 }
 
-func (p *keyManagerPlugin) HandlePluginMessage(_ context.Context, req *panel.PluginMessage) (*panel.PluginMessageReply, error) {
+func (p *secretManagerPlugin) HandlePluginMessage(_ context.Context, req *panel.PluginMessage) (*panel.PluginMessageReply, error) {
 	if req.GetTopic() != topicSecretGet {
 		return pluginMessageError("unsupported topic")
 	}
@@ -129,6 +129,6 @@ func (p *keyManagerPlugin) HandlePluginMessage(_ context.Context, req *panel.Plu
 	return &panel.PluginMessageReply{Message: value}, nil
 }
 
-func (p *keyManagerPlugin) HandleSocketEvent(context.Context, *panel.SocketEvent) (*panel.SocketEventReply, error) {
+func (p *secretManagerPlugin) HandleSocketEvent(context.Context, *panel.SocketEvent) (*panel.SocketEventReply, error) {
 	return &panel.SocketEventReply{}, nil
 }
