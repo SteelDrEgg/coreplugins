@@ -44,7 +44,8 @@ type secretMeta struct {
 }
 
 type secretGetRequest struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	Passphrase string `json:"passphrase"`
 }
 
 func (p *secretManagerPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
@@ -114,15 +115,11 @@ func (p *secretManagerPlugin) HandlePluginMessage(_ context.Context, req *panel.
 	if !p.allowed(payload.Name, req.GetSource()) {
 		return pluginMessageError("plugin is not allowed to access this secret")
 	}
-	encryption, err := p.secretEncryption(payload.Name)
+	_, err := p.secretEncryption(payload.Name)
 	if err != nil {
 		return pluginMessageError(err.Error())
 	}
-	if encryption == secretEncryptionScrypt {
-		return pluginMessageError("secret requires a passphrase")
-	}
-
-	value, err := p.decryptSecret(payload.Name, "")
+	value, err := p.decryptSecret(payload.Name, payload.Passphrase)
 	if err != nil {
 		return pluginMessageError(err.Error())
 	}
