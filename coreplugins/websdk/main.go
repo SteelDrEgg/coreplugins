@@ -22,7 +22,7 @@ const webAssetsNamespace = "web-sdk"
 func (webAssetsPlugin) Register(ctx context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
 	host := panel.NewHost()
 	urls := map[string]string{
-		"web_sdk":   "/assets/js/sdk.js",
+		"sdk":       "/assets/js/sdk.js",
 		"languages": "/assets/js/lang.json",
 	}
 	urlsJSON, err := json.Marshal(urls)
