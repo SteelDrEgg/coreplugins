@@ -88,3 +88,18 @@ body.dark {
     --depth: 1;
     --noise: 0;
 }
+
+.badge-soft {
+    border-color: currentColor;
+}
+.alert-soft {
+    border-color: currentColor;
+    color: var(--alert-color);
+    box-shadow: none;
+    background-image: none;
+}
+
+input,
+select{
+    outline: none
+}
