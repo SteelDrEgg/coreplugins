@@ -25,6 +25,8 @@ func (s *sshServer) connectSSH(ctx context.Context, ev *panel.SocketEvent) error
 	if err != nil {
 		return s.emitError(ctx, ev.GetSocketId(), err.Error())
 	}
+	req.Password = ""
+	req.Passphrase = ""
 
 	connectCtx, pending := s.startConnection(ctx, ev.GetSocketId(), hostConfig.Timeout)
 	sshClient, err := sshc.Connect(connectCtx, hostConfig, authMethods)

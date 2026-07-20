@@ -7,6 +7,11 @@
         CONNECTED: "connected",
         ERROR: "error"
     });
+    const endpoints = Object.freeze({
+        connections: "/ssh/api/connections",
+        secrets: "/keys",
+        revealSecret: "/keys/reveal"
+    });
 
     const terminalColorVariables = {
         background: "--color-base-100",
@@ -34,13 +39,25 @@
     const elements = {
         connectButton: document.getElementById("connectBtn"),
         connectionForm: document.getElementById("connectionForm"),
+        savedConnection: document.getElementById("savedConnection"),
         closeModalButton: document.getElementById("closeModalBtn"),
         host: document.getElementById("host"),
         port: document.getElementById("port"),
         username: document.getElementById("username"),
+        passwordSource: document.getElementById("passwordSource"),
+        manualPasswordSource: document.getElementById("manual-password-source"),
+        secretPasswordSource: document.getElementById("secret-password-source"),
         password: document.getElementById("password"),
         privateKey: document.getElementById("privateKey"),
         passphrase: document.getElementById("passphrase"),
+        secretName: document.getElementById("secretName"),
+        secretHelp: document.getElementById("secretHelp"),
+        secretPassphrase: document.getElementById("secretPassphrase"),
+        secretPassphraseField: document.getElementById("secretPassphraseField"),
+        refreshSecretsButton: document.getElementById("refreshSecretsBtn"),
+        saveConnection: document.getElementById("saveConnection"),
+        connectionName: document.getElementById("connectionName"),
+        connectionNameField: document.getElementById("connectionNameField"),
         modal: document.getElementById("connectionModal"),
         statusIndicator: document.getElementById("statusIndicator"),
         statusText: document.getElementById("statusText"),
@@ -63,6 +80,8 @@
     let state = State.IDLE;
     let socket = null;
     let authMethod = "password";
+    let secrets = [];
+    let savedConnections = [];
 
     function cssColorToHex(value, fallback) {
         const parsed = window.culori?.parse?.(value);
@@ -101,7 +120,7 @@
 
     function writeWelcome() {
         term.clear();
-        term.write("Terminal - Click Connect to start an SSH session.\\r\\n");
+        term.write("Terminal - Click Connect to start an SSH session.\r\n");
     }
 
     function activeSocket(candidate) {
@@ -125,7 +144,103 @@
         });
     }
 
-    function setAuthMethod(nextMethod) {
+    async function fetchJSON(url, options = {}) {
+        const response = await fetch(url, {
+            credentials: "same-origin",
+            cache: "no-store",
+            ...options,
+            headers: {
+                "Content-Type": "application/json",
+                ...(options.headers || {})
+            }
+        });
+        let payload;
+        try {
+            payload = await response.json();
+        } catch {
+            throw new Error(`Unexpected response from ${url}`);
+        }
+        if (!response.ok || payload.success === false) {
+            throw new Error(payload.message || `Request failed with status ${response.status}`);
+        }
+        return payload;
+    }
+
+    function renderSavedConnections(selectedName = "") {
+        elements.savedConnection.replaceChildren(new Option("New connection", ""));
+        savedConnections.forEach(connection => {
+            elements.savedConnection.add(new Option(connection.name, connection.name));
+        });
+        elements.savedConnection.value = selectedName;
+    }
+
+    async function loadSavedConnections(selectedName = elements.savedConnection.value) {
+        try {
+            const payload = await fetchJSON(endpoints.connections);
+            savedConnections = Array.isArray(payload.connections) ? payload.connections : [];
+            renderSavedConnections(selectedName);
+        } catch (error) {
+            savedConnections = [];
+            renderSavedConnections();
+            elements.savedConnection.add(new Option(`Unable to load: ${error.message}`, "", false, false));
+        }
+    }
+
+    function selectedSecret() {
+        return secrets.find(secret => secret.name === elements.secretName.value);
+    }
+
+    function updateSecretPassphrase() {
+        const secret = selectedSecret();
+        const needsPassphrase = secret?.encryption === "scrypt";
+        elements.secretPassphraseField.hidden = !needsPassphrase;
+        if (!needsPassphrase) {
+            elements.secretPassphrase.value = "";
+        }
+        if (!secret) {
+            elements.secretHelp.textContent = "Select a Secret Manager entry to use as the SSH password.";
+            return;
+        }
+        const encryption = needsPassphrase ? "Passphrase required" : "No Secret Manager passphrase required";
+        elements.secretHelp.textContent = secret.description
+            ? `${secret.description} · ${encryption}`
+            : encryption;
+    }
+
+    function renderSecrets(selectedName = "") {
+        elements.secretName.replaceChildren(new Option("Select a secret", ""));
+        secrets.forEach(secret => {
+            const suffix = secret.encryption === "scrypt" ? " (passphrase)" : "";
+            elements.secretName.add(new Option(`${secret.name}${suffix}`, secret.name));
+        });
+        elements.secretName.value = selectedName;
+        updateSecretPassphrase();
+    }
+
+    async function loadSecrets(selectedName = elements.secretName.value) {
+        elements.refreshSecretsButton.disabled = true;
+        elements.secretName.disabled = true;
+        elements.secretHelp.textContent = "Loading secrets…";
+        try {
+            const payload = await fetchJSON(endpoints.secrets);
+            secrets = Array.isArray(payload.keys) ? payload.keys : [];
+            renderSecrets(selectedName);
+            if (selectedName && !selectedSecret()) {
+                elements.secretHelp.textContent = `Saved secret "${selectedName}" is no longer available.`;
+            } else if (secrets.length === 0) {
+                elements.secretHelp.textContent = "No secrets are available in Secret Manager.";
+            }
+        } catch (error) {
+            secrets = [];
+            renderSecrets();
+            elements.secretHelp.textContent = `Unable to load secrets: ${error.message}`;
+        } finally {
+            elements.refreshSecretsButton.disabled = false;
+            elements.secretName.disabled = false;
+        }
+    }
+
+    function setAuthMethod(nextMethod, loadSecretOptions = true) {
         authMethod = nextMethod;
         elements.authTabs.forEach(tab => {
             const active = tab.dataset.auth === nextMethod;
@@ -137,9 +252,81 @@
             panel.classList.toggle("active", active);
             panel.hidden = !active;
         });
+        if (loadSecretOptions && nextMethod === "password" && elements.passwordSource.value === "secret" && secrets.length === 0) {
+            void loadSecrets();
+        }
     }
 
-    function requestFromForm() {
+    function setPasswordSource(source, loadSecretOptions = true) {
+        const useSecret = source === "secret";
+        elements.passwordSource.value = useSecret ? "secret" : "manual";
+        elements.manualPasswordSource.hidden = useSecret;
+        elements.secretPasswordSource.hidden = !useSecret;
+        if (!useSecret) {
+            elements.secretPassphrase.value = "";
+        } else if (loadSecretOptions && secrets.length === 0) {
+            void loadSecrets();
+        }
+    }
+
+    async function applySavedConnection() {
+        const connection = savedConnections.find(item => item.name === elements.savedConnection.value);
+        if (!connection) {
+            return;
+        }
+        elements.host.value = connection.host;
+        elements.port.value = connection.port || "22";
+        elements.username.value = connection.username;
+        elements.privateKey.value = connection.private_key || "";
+        elements.connectionName.value = connection.name;
+        setAuthMethod(connection.auth_type, false);
+        const usesSecretPassword = connection.auth_type === "password" && Boolean(connection.secret_name);
+        setPasswordSource(usesSecretPassword ? "secret" : "manual", false);
+        if (usesSecretPassword) {
+            await loadSecrets(connection.secret_name || "");
+        }
+    }
+
+    function toggleConnectionName() {
+        elements.connectionNameField.hidden = !elements.saveConnection.checked;
+        if (elements.saveConnection.checked && !elements.connectionName.value.trim()) {
+            elements.connectionName.value = elements.savedConnection.value || elements.host.value.trim();
+        }
+    }
+
+    function connectionSettingsFromForm() {
+        if (!elements.saveConnection.checked) {
+            return null;
+        }
+        const name = elements.connectionName.value.trim();
+        if (!name) {
+            throw new Error("Connection name is required when saving settings");
+        }
+        return {
+            name,
+            host: elements.host.value.trim(),
+            port: elements.port.value.trim(),
+            username: elements.username.value.trim(),
+            auth_type: authMethod,
+            private_key: authMethod === "key" ? elements.privateKey.value.trim() : "",
+            secret_name: authMethod === "password" && elements.passwordSource.value === "secret"
+                ? elements.secretName.value
+                : ""
+        };
+    }
+
+    async function saveConnectionSettings(settings) {
+        if (!settings) {
+            return;
+        }
+        await fetchJSON(endpoints.connections, {
+            method: "POST",
+            body: JSON.stringify(settings)
+        });
+        await loadSavedConnections(settings.name);
+    }
+
+    async function requestFromForm() {
         const host = elements.host.value.trim();
         const port = elements.port.value.trim();
         const username = elements.username.value.trim();
@@ -149,22 +336,47 @@
 
         const request = { host, port, username };
         if (authMethod === "password") {
-            request.password = elements.password.value;
-        } else {
+            if (elements.passwordSource.value === "manual") {
+                request.password = elements.password.value;
+            } else {
+                const secret = selectedSecret();
+                if (!secret) {
+                    throw new Error("Select a Secret Manager entry");
+                }
+                const passphrase = elements.secretPassphrase.value;
+                if (secret.encryption === "scrypt" && !passphrase) {
+                    throw new Error("This secret requires a passphrase");
+                }
+                const revealed = await fetchJSON(endpoints.revealSecret, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        name: secret.name,
+                        passphrase
+                    })
+                });
+                if (typeof revealed.value !== "string" || !revealed.value) {
+                    throw new Error("The selected secret is empty");
+                }
+                request.password = revealed.value;
+            }
+        } else if (authMethod === "key") {
             request.privateKey = elements.privateKey.value.trim();
             request.passphrase = elements.passphrase.value;
         }
         return request;
     }
 
-    function handleConnect() {
+    async function handleConnect() {
         if (state === State.CONNECTING || state === State.CONNECTED) {
             return;
         }
 
         let request;
+        let settings;
+        setState(State.CONNECTING, "Preparing connection…");
         try {
-            request = requestFromForm();
+            settings = connectionSettingsFromForm();
+            request = await requestFromForm();
         } catch (error) {
             setState(State.ERROR, error.message);
             return;
@@ -180,6 +392,11 @@
         nextSocket.on("connect", () => {
             if (activeSocket(nextSocket)) {
                 nextSocket.emit("connect_ssh", request);
+                request.password = "";
+                request.passphrase = "";
+                elements.password.value = "";
+                elements.passphrase.value = "";
+                elements.secretPassphrase.value = "";
             }
         });
 
@@ -190,9 +407,20 @@
             setState(State.CONNECTED, `Connected to ${data.user}@${data.host}:${data.port}`);
             elements.modal.close();
             term.clear();
-            term.write(`Connected to ${data.user}@${data.host}:${data.port}\\r\\n`);
+            term.write(`Connected to ${data.user}@${data.host}:${data.port}\r\n`);
             term.focus();
             fitTerminal();
+            if (settings) {
+                void saveConnectionSettings(settings).then(() => {
+                    if (activeSocket(nextSocket)) {
+                        setState(State.CONNECTED, `Connected to ${data.user}@${data.host}:${data.port} · Saved`);
+                    }
+                }).catch(error => {
+                    if (activeSocket(nextSocket)) {
+                        setState(State.CONNECTED, `Connected · Unable to save settings: ${error.message}`);
+                    }
+                });
+            }
         });
 
         nextSocket.on("ssh_error", error => {
@@ -208,7 +436,7 @@
                 return;
             }
             setState(State.IDLE, message || "Not connected");
-            term.write(`\\r\\n${message || "SSH session closed"}\\r\\n`);
+            term.write(`\r\n${message || "SSH session closed"}\r\n`);
             closeSocket(nextSocket);
         });
 
@@ -233,7 +461,7 @@
             socket = null;
             if (state === State.CONNECTED || state === State.CONNECTING) {
                 setState(State.IDLE, `Disconnected${reason ? `: ${reason}` : ""}`);
-                term.write("\\r\\nSSH session closed\\r\\n");
+                term.write("\r\nSSH session closed\r\n");
             }
         });
     }
@@ -255,6 +483,7 @@
         if (!elements.modal.open) {
             elements.modal.showModal();
             elements.host.focus();
+            void loadSavedConnections();
         }
     }
 
@@ -262,9 +491,14 @@
     elements.closeModalButton.addEventListener("click", () => elements.modal.close());
     elements.connectionForm.addEventListener("submit", event => {
         event.preventDefault();
-        handleConnect();
+        void handleConnect();
     });
     elements.authTabs.forEach(tab => tab.addEventListener("click", () => setAuthMethod(tab.dataset.auth)));
+    elements.passwordSource.addEventListener("change", () => setPasswordSource(elements.passwordSource.value));
+    elements.savedConnection.addEventListener("change", () => void applySavedConnection());
+    elements.secretName.addEventListener("change", updateSecretPassphrase);
+    elements.refreshSecretsButton.addEventListener("click", () => void loadSecrets());
+    elements.saveConnection.addEventListener("change", toggleConnectionName);
     elements.modal.addEventListener("click", event => {
         if (event.target === elements.modal) {
             elements.modal.close();
@@ -286,6 +520,8 @@
         applyTheme("light");
     }
     setState(State.IDLE, "Not connected");
+    setPasswordSource(elements.passwordSource.value, false);
+    void loadSavedConnections();
     writeWelcome();
     fitTerminal();
     term.focus();

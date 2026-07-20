@@ -115,8 +115,9 @@ func getTestSecret(ctx context.Context, host panel.Host) (*panel.HTTPResponse, e
 	}
 
 	reply, err := host.SendPluginMessage(ctx, &panel.PluginMessage{
-		Target:  secretManagerPluginName,
-		Topic:   secretGetTopic,
+		Target: secretManagerPluginName,
+		Topic:  secretGetTopic,
+		//Topic:   "secret-manager.secret.get",
 		Payload: payload,
 	})
 	if err != nil {

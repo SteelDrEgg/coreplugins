@@ -41,6 +41,12 @@
 
             <form id="connectionForm" class="mt-5 grid gap-4">
                 <label class="grid gap-2">
+                    <span class="text-sm font-medium text-base-content/70">Saved Connection</span>
+                    <select class="select w-full" id="savedConnection">
+                        <option value="">New connection</option>
+                    </select>
+                </label>
+                <label class="grid gap-2">
                     <span class="text-sm font-medium text-base-content/70">Host</span>
                     <input class="input w-full" type="text" id="host" placeholder="e.g., example.com" value="localhost" autocomplete="url" required>
                 </label>
@@ -59,10 +65,41 @@
                 </div>
 
                 <section id="password-auth" class="auth-content active" role="tabpanel">
-                    <label class="grid gap-2">
-                        <span class="text-sm font-medium text-base-content/70">Password</span>
-                        <input class="input w-full" type="password" id="password" autocomplete="current-password" placeholder="Enter password">
-                    </label>
+                    <div class="grid gap-4">
+                        <label class="grid gap-2">
+                            <span class="text-sm font-medium text-base-content/70">Password Source</span>
+                            <select class="select w-full" id="passwordSource">
+                                <option value="manual">Enter manually</option>
+                                <option value="secret">Secret Manager</option>
+                            </select>
+                        </label>
+
+                        <div id="manual-password-source" class="password-source-content">
+                            <label class="grid gap-2">
+                                <span class="text-sm font-medium text-base-content/70">Password</span>
+                                <input class="input w-full" type="password" id="password" autocomplete="current-password" placeholder="Enter password">
+                            </label>
+                        </div>
+
+                        <div id="secret-password-source" class="password-source-content" hidden>
+                            <div class="grid gap-4">
+                                <div class="grid gap-2">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <label for="secretName" class="text-sm font-medium text-base-content/70">Secret</label>
+                                        <button id="refreshSecretsBtn" class="btn btn-ghost btn-xs" type="button">Refresh</button>
+                                    </div>
+                                    <select class="select w-full" id="secretName" aria-describedby="secretHelp">
+                                        <option value="">Select a secret</option>
+                                    </select>
+                                    <span id="secretHelp" class="text-xs text-base-content/60">The selected secret will be used as the SSH password.</span>
+                                </div>
+                                <label id="secretPassphraseField" class="grid gap-2" hidden>
+                                    <span class="text-sm font-medium text-base-content/70">Secret Manager Passphrase</span>
+                                    <input class="input w-full" type="password" id="secretPassphrase" autocomplete="off" placeholder="Required to reveal this secret">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 <section id="key-auth" class="auth-content" role="tabpanel" hidden>
@@ -77,6 +114,16 @@
                         </label>
                     </div>
                 </section>
+
+                <label class="flex cursor-pointer items-center gap-3">
+                    <input class="checkbox checkbox-sm" type="checkbox" id="saveConnection">
+                    <span class="text-sm font-medium">Save connection settings</span>
+                </label>
+                <label id="connectionNameField" class="grid gap-2" hidden>
+                    <span class="text-sm font-medium text-base-content/70">Connection Name</span>
+                    <input class="input w-full" type="text" id="connectionName" maxlength="80" placeholder="e.g., Production server">
+                    <span class="text-xs text-base-content/60">Credentials and passphrases are never saved.</span>
+                </label>
 
                 <button id="submitBtn" class="btn btn-primary mt-1 w-full" type="submit">Connect</button>
             </form>
