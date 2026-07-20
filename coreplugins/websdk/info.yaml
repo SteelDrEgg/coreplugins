@@ -1,5 +1,5 @@
 Name: web-sdk
-Version: 0.1.0
+Version: 0.1.1a
 Type: wasm
 ContractVersion: 1
 Command: $PLUGIN_ROOT/web_sdk.wasm
