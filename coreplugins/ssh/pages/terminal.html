@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <title>Terminal</title>
+    <meta charset="utf-8">
+    <title>SSH Terminal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/assets/css/scheme.css">
-    <link rel="stylesheet" href="/assets/css/daisyui@5.css" type="text/css">
+    <link rel="stylesheet" href="/assets/css/daisyui@5.css">
+    <link rel="stylesheet" href="/ssh/assets/terminal/xterm.min.css">
+    <link rel="stylesheet" href="/ssh/assets/terminal/terminal.css">
     <script src="/assets/css/tailwindcss@4"></script>
     <script src="/assets/js/sdk.js"></script>
     <script>window.module = { exports: {} };</script>
@@ -14,470 +16,76 @@
         window.culori = window.module.exports;
         delete window.module;
     </script>
-    <link rel="stylesheet" href="/ssh/assets/terminal/xterm.min.css" />
-    <style>
-        :root {
-            --primary-hover: color-mix(in oklab, var(--color-primary) 10%, transparent);
-            --primary-light: var(--primary-hover);
-        }
-
-        html,
-        body {
-            height: 100%;
-        }
-
-        body {
-            overflow: hidden;
-        }
-
-        .status-indicator {
-            position: relative;
-            width: 0.75rem;
-            height: 0.75rem;
-            background-color: var(--color-base-content);
-            border-radius: 50%;
-            opacity: 0.55;
-            flex: 0 0 auto;
-        }
-
-        .status-indicator::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .status-indicator.connected {
-            background-color: var(--color-primary);
-            opacity: 1;
-        }
-
-        .status-indicator.connected::before {
-            background-color: var(--primary-light);
-            animation: radiativePulse 1.5s infinite;
-        }
-
-        .status-indicator.error {
-            background-color: var(--color-error);
-            opacity: 1;
-        }
-
-        @keyframes radiativePulse {
-            0% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 0.8;
-            }
-            70% {
-                transform: translate(-50%, -50%) scale(3);
-                opacity: 0;
-            }
-            100% {
-                transform: translate(-50%, -50%) scale(3);
-                opacity: 0;
-            }
-        }
-
-        .terminal-container {
-            height: calc(100vh - 4rem);
-            padding: 1rem;
-            min-width: 0;
-        }
-
-        #terminal {
-            width: 100%;
-            height: 100%;
-            background: var(--color-base-100);
-        }
-
-        .icon {
-            display: inline-block;
-            width: 1rem;
-            height: 1rem;
-            background: currentColor;
-            mask: var(--icon-url) no-repeat center;
-            mask-size: contain;
-            -webkit-mask: var(--icon-url) no-repeat center;
-            -webkit-mask-size: contain;
-        }
-
-        .icon.terminal {
-            --icon-url: url("/assets/icon/terminal.svg");
-        }
-
-        .auth-content {
-            display: none;
-        }
-
-        .auth-content.active {
-            display: block;
-        }
-
-        .auth-tab.active {
-            background-color: var(--color-primary);
-            color: var(--color-primary-content);
-        }
-    </style>
 </head>
-
 <body class="light min-h-screen bg-base-200 text-base-content">
-    <!-- Top Bar -->
-    <div class="navbar min-h-16 border-b border-base-300 bg-base-100 px-4">
+    <header class="navbar min-h-16 border-b border-base-300 bg-base-100 px-4">
         <div class="min-w-0 flex-1">
-            <div style="outline: none;border: none" class="badge min-w-0 max-w-full gap-2 px-3 py-3">
-                <div class="status-indicator" id="statusIndicator"></div>
-                <span class="truncate" id="statusText">Not connected</span>
+            <div class="badge min-w-0 max-w-full gap-2 px-3 py-3">
+                <span class="status-indicator" id="statusIndicator" aria-hidden="true"></span>
+                <span class="truncate" id="statusText" role="status">Not connected</span>
             </div>
         </div>
-        <button id="connectBtn" class="btn btn-primary connect-button" onclick="openConnectionModal()">
-<!--            <span class="icon terminal" aria-hidden="true"></span>-->
-            Connect
-        </button>
-    </div>
+        <button id="connectBtn" class="btn btn-primary" type="button">Connect</button>
+    </header>
 
-    <!-- Terminal Container -->
-    <div class="terminal-container bg-base-100">
-        <div id="terminal"></div>
-    </div>
+    <main class="terminal-container bg-base-100">
+        <div id="terminal" aria-label="SSH terminal"></div>
+    </main>
 
-    <!-- Connection Modal -->
-    <dialog id="connectionModal" class="modal modal-bottom sm:modal-middle">
+    <dialog id="connectionModal" class="modal modal-bottom sm:modal-middle" aria-labelledby="connectionTitle">
         <div class="modal-box w-11/12 max-w-md rounded-lg border border-base-300">
-            <form method="dialog">
-                <button class="btn btn-ghost btn-sm btn-square absolute right-3 top-3" aria-label="Close">x</button>
-            </form>
+            <button id="closeModalBtn" class="btn btn-ghost btn-sm btn-square absolute right-3 top-3" type="button" aria-label="Close">×</button>
             <div class="flex items-center justify-between gap-3 border-b border-base-300 pb-4">
-                <h2 class="text-lg font-semibold tracking-normal">SSH Connection</h2>
+                <h1 id="connectionTitle" class="text-lg font-semibold tracking-normal">SSH Connection</h1>
             </div>
 
-            <div class="mt-5 grid gap-4">
+            <form id="connectionForm" class="mt-5 grid gap-4">
                 <label class="grid gap-2">
                     <span class="text-sm font-medium text-base-content/70">Host</span>
-                    <input class="input w-full" type="text" id="host" placeholder="e.g., example.com" value="localhost">
+                    <input class="input w-full" type="text" id="host" placeholder="e.g., example.com" value="localhost" autocomplete="url" required>
                 </label>
-
                 <label class="grid gap-2">
                     <span class="text-sm font-medium text-base-content/70">Port</span>
-                    <input class="input w-full" type="number" id="port" placeholder="22" value="22">
+                    <input class="input w-full" type="number" id="port" placeholder="22" value="22" min="1" max="65535" inputmode="numeric" required>
                 </label>
-
                 <label class="grid gap-2">
                     <span class="text-sm font-medium text-base-content/70">Username</span>
-                    <input class="input w-full" type="text" id="username" placeholder="Enter username">
+                    <input class="input w-full" type="text" id="username" placeholder="Enter username" autocomplete="username" required>
                 </label>
-            </div>
 
-            <div class="tabs-box tabs mt-5 grid grid-cols-2">
-                <button class="tab auth-tab active" onclick="switchAuthTab('password', event)">Password</button>
-                <button class="tab auth-tab" onclick="switchAuthTab('key', event)">Private Key</button>
-            </div>
-
-            <div class="mt-4">
-                <div id="password-auth" class="auth-content active">
-                    <label class="grid gap-2">
-                        <span class="text-sm font-medium text-base-content/70">Password</span>
-                        <input class="input w-full" type="password" id="password" placeholder="Enter password">
-                    </label>
+                <div class="tabs-box tabs mt-1 grid grid-cols-2" role="tablist" aria-label="Authentication method">
+                    <button class="tab auth-tab active" type="button" data-auth="password" role="tab" aria-selected="true">Password</button>
+                    <button class="tab auth-tab" type="button" data-auth="key" role="tab" aria-selected="false">Private Key</button>
                 </div>
 
-                <div id="key-auth" class="auth-content">
+                <section id="password-auth" class="auth-content active" role="tabpanel">
+                    <label class="grid gap-2">
+                        <span class="text-sm font-medium text-base-content/70">Password</span>
+                        <input class="input w-full" type="password" id="password" autocomplete="current-password" placeholder="Enter password">
+                    </label>
+                </section>
+
+                <section id="key-auth" class="auth-content" role="tabpanel" hidden>
                     <div class="grid gap-4">
                         <label class="grid gap-2">
                             <span class="text-sm font-medium text-base-content/70">Private Key Path</span>
-                            <input class="input w-full" type="text" id="privateKey" placeholder="e.g., ~/.ssh/id_rsa">
+                            <input class="input w-full" type="text" id="privateKey" placeholder="e.g., ~/.ssh/id_ed25519">
                         </label>
                         <label class="grid gap-2">
                             <span class="text-sm font-medium text-base-content/70">Passphrase (optional)</span>
-                            <input class="input w-full" type="password" id="passphrase" placeholder="Enter passphrase if required">
+                            <input class="input w-full" type="password" id="passphrase" autocomplete="off" placeholder="Enter passphrase if required">
                         </label>
                     </div>
-                </div>
-            </div>
+                </section>
 
-            <button class="btn btn-primary mt-5 w-full" onclick="connectFromModal()">
-<!--                <span class="icon terminal" aria-hidden="true"></span>-->
-                Connect
-            </button>
+                <button id="submitBtn" class="btn btn-primary mt-1 w-full" type="submit">Connect</button>
+            </form>
         </div>
     </dialog>
 
-    <!-- Scripts -->
     <script src="/ssh/assets/terminal/socket.io.min.js"></script>
     <script src="/ssh/assets/terminal/xterm.min.js"></script>
     <script src="/ssh/assets/terminal/xterm-addon-fit.min.js"></script>
-
-    <script>
-        const webSDK = window.webSDK;
-        const terminalColorVariables = {
-            background: '--color-base-100',
-            foreground: '--color-base-content',
-            cursor: '--color-base-content',
-            selection: '--color-primary-content',
-            black: '--color-neutral',
-            red: '--color-error',
-            green: '--color-success',
-            yellow: '--color-warning',
-            blue: '--color-primary',
-            magenta: '--color-secondary',
-            cyan: '--color-accent',
-            white: '--color-base-100',
-            brightBlack: '--color-neutral-content',
-            brightRed: '--color-error',
-            brightGreen: '--color-success',
-            brightYellow: '--color-warning',
-            brightBlue: '--color-primary',
-            brightMagenta: '--color-secondary',
-            brightCyan: '--color-accent',
-            brightWhite: '--color-base-content'
-        };
-
-        function cssColorToHex(value, fallback) {
-            const parsed = window.culori.parse(value);
-            return parsed ? window.culori.formatHex(parsed) : fallback;
-        }
-
-        function terminalThemeFromCSS() {
-            const styles = getComputedStyle(document.body);
-            const fallback = '#000000';
-            return Object.fromEntries(Object.entries(terminalColorVariables).map(([name, variable]) => [
-                name,
-                cssColorToHex(styles.getPropertyValue(variable).trim(), fallback)
-            ]));
-        }
-
-        function applyTheme(theme) {
-            const normalized = theme === 'dark' ? 'dark' : 'light';
-            document.body.classList.remove('light', 'dark');
-            document.body.classList.add(normalized);
-            if (typeof term !== 'undefined') term.options.theme = terminalThemeFromCSS();
-        }
-
-        // Terminal setup with the persisted application theme and CSS colors.
-        const term = new Terminal({
-            cursorBlink: true,
-            theme: {},
-            fontSize: 14,
-            fontFamily: 'Menlo, Monaco, "Courier New", monospace'
-        });
-
-        // Load the fit addon
-        const fitAddon = new FitAddon.FitAddon();
-        term.loadAddon(fitAddon);
-
-        term.open(document.getElementById('terminal'));
-        webSDK.onThemeChange(applyTheme);
-        applyTheme(webSDK.getTheme());
-        
-        term.write('Terminal - Click Connect to start an SSH session.\r\n');
-
-        // Socket.IO and connection state
-        let socket = null;
-        let connected = false;
-
-        // UI elements
-        const statusIndicator = document.getElementById('statusIndicator');
-        const statusText = document.getElementById('statusText');
-        const connectBtn = document.getElementById('connectBtn');
-        const modal = document.getElementById('connectionModal');
-
-        // Modal functions
-        function openConnectionModal() {
-            if (connected) {
-                disconnect();
-            } else if (!modal.open) {
-                modal.showModal();
-            }
-        }
-
-        function closeConnectionModal() {
-            if (modal.open) {
-                modal.close();
-            }
-        }
-
-        function switchAuthTab(authType, event) {
-            // Update tabs
-            document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-
-            // Update content
-            document.querySelectorAll('.auth-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(authType + '-auth').classList.add('active');
-        }
-
-        function connectFromModal() {
-            connect();
-        }
-
-        function setConnectButtonLabel(label) {
-            connectBtn.innerHTML = '<span class="icon terminal" aria-hidden="true"></span>' + label;
-        }
-
-        // Update status
-        function updateStatus(status, message) {
-            statusIndicator.className = `status-indicator ${status}`;
-            statusText.textContent = message;
-            
-            if (status === 'connected') {
-                setConnectButtonLabel('Disconnect');
-                connectBtn.classList.add('btn-error');
-                connectBtn.classList.remove('btn-primary');
-            } else {
-                setConnectButtonLabel('Connect');
-                connectBtn.classList.add('btn-primary');
-                connectBtn.classList.remove('btn-error');
-            }
-        }
-
-        // Terminal resize
-        function resizeTerminal() {
-            const container = document.querySelector('.terminal-container');
-            const width = container.clientWidth - 32; // padding
-            const height = container.clientHeight - 32;
-            
-            const cols = Math.floor(width / 9.6); // character width
-            const rows = Math.floor(height / 17); // character height
-            
-            if (cols > 0 && rows > 0 && connected && socket) {
-                socket.emit('resize', { cols, rows });
-                term.resize(cols, rows);
-            }
-        }
-
-        window.addEventListener('resize', () => {
-            setTimeout(resizeTerminal, 100);
-        });
-
-        // Terminal input
-        term.onData(data => {
-            if (connected && socket) {
-                socket.emit('terminal_input', data);
-            }
-        });
-
-        // Connect function
-        function connect() {
-            if (connected) return;
-
-            const host = document.getElementById('host').value.trim();
-            const port = document.getElementById('port').value.trim() || '22';
-            const username = document.getElementById('username').value.trim();
-
-            if (!host || !username) {
-                updateStatus('error', 'Host and username are required');
-                return;
-            }
-
-            updateStatus('', 'Connecting...');
-            
-            // Initialize socket
-            socket = io('/ssh', {
-                transports: ['websocket', 'polling']
-            });
-
-            socket.on('connect', () => {
-                const connectionData = {
-                    host: host,
-                    port: port,
-                    username: username
-                };
-
-                // Add auth data
-                if (document.getElementById('password-auth').classList.contains('active')) {
-                    connectionData.password = document.getElementById('password').value;
-                } else {
-                    connectionData.privateKey = document.getElementById('privateKey').value.trim();
-                    connectionData.passphrase = document.getElementById('passphrase').value;
-                }
-
-                socket.emit('connect_ssh', connectionData);
-            });
-
-            socket.on('ssh_connected', (data) => {
-                connected = true;
-                updateStatus('connected', `Connected to ${data.user}@${data.host}:${data.port}`);
-                closeConnectionModal();
-                
-                term.clear();
-                term.write(`Connected to ${data.user}@${data.host}:${data.port}\r\n`);
-                term.focus();
-                
-                setTimeout(resizeTerminal, 200);
-            });
-
-            socket.on('ssh_error', (error) => {
-                updateStatus('error', `Error: ${error}`);
-                if (socket) {
-                    socket.disconnect();
-                    socket = null;
-                }
-            });
-
-            socket.on('ssh_disconnected', (message) => {
-                connected = false;
-                updateStatus('', message || 'Not connected');
-                term.write(`\r\n${message || 'SSH session closed'}\r\n`);
-            });
-
-            socket.on('terminal_output', (data) => {
-                term.write(data);
-            });
-
-            socket.on('disconnect', () => {
-                if (connected) {
-                    disconnect();
-                }
-            });
-
-            socket.on('connect_error', (error) => {
-                updateStatus('error', `Connection failed: ${error.message}`);
-            });
-        }
-
-        // Disconnect function
-        function disconnect() {
-            if (socket) {
-                socket.disconnect();
-                socket = null;
-            }
-
-            connected = false;
-            updateStatus('', 'Not connected');
-            
-            term.clear();
-            term.write('Terminal - Click Connect to start an SSH session.\r\n');
-        }
-
-        // Close modal when clicking outside the modal box
-        modal.addEventListener('click', (event) => {
-            const rect = modal.querySelector('.modal-box').getBoundingClientRect();
-            const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
-                event.clientY >= rect.top && event.clientY <= rect.bottom;
-            if (!inside) closeConnectionModal();
-        });
-
-        // Handle Enter key in inputs
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !connected) {
-                    connect();
-                }
-            });
-        });
-
-        // Cleanup
-        window.addEventListener('beforeunload', () => {
-            if (connected && socket) {
-                socket.disconnect();
-            }
-        });
-
-        // Initial terminal focus
-        term.focus();
-    </script>
+    <script src="/ssh/assets/terminal/terminal.js"></script>
 </body>
-
 </html>
