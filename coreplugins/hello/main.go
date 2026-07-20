@@ -64,6 +64,27 @@ func newRouter(plugin *wasm.Plugin) *gin.Engine {
 			"message": "dynamic Gin route matched",
 		})
 	})
+	router.GET(helloRoute+"/kv/sys", func(c *gin.Context) {
+		data, found, _ := plugin.KVGet(
+			c.Request.Context(),
+			"sys",
+			"plugin/catalog/hello",
+		)
+		c.JSON(http.StatusOK, gin.H{
+			"found": found,
+			"data":  string(data),
+		})
+	})
+	router.GET(helloRoute+"/kv", func(c *gin.Context) {
+		storage := plugin.KV()
+		_ = storage.Set(c.Request.Context(),
+			"test",
+			[]byte("test message"))
+		value, _, _ := storage.Get(c.Request.Context(), "test")
+		c.JSON(http.StatusOK, gin.H{
+			"data": string(value),
+		})
+	})
 	router.GET(helloRoute+"/secrets", func(c *gin.Context) {
 		message, err := plugin.SendMessage(c.Request.Context(), arupa.OutgoingMessage{
 			Target: secretManagerPlugin,
