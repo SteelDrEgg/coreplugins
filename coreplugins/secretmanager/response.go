@@ -4,21 +4,17 @@ package main
 
 import (
 	"encoding/json"
-
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
+	"net/http"
 )
 
-func jsonResponse(status int, payload any) (*panel.HTTPResponse, error) {
+func writeJSONResponse(w http.ResponseWriter, status int, payload any) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, err
+		http.Error(w, "Encode response", http.StatusInternalServerError)
+		return
 	}
-	return &panel.HTTPResponse{
-		Status: int32(status),
-		Headers: map[string]string{
-			"Content-Type":  "application/json; charset=utf-8",
-			"Cache-Control": "no-store",
-		},
-		Body: body,
-	}, nil
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
 }

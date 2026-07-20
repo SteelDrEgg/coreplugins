@@ -53,7 +53,7 @@ func newSSHServer() *sshServer {
 		pending:  make(map[string]*pendingConnection),
 		settings: make(map[string]savedConnection),
 	}
-	events := arupa.NewEventBus()
+	events := arupa.NewSocketListener()
 	_ = events.On(eventConnectSSH, s.connectSSH)
 	_ = events.On(eventTerminalInput, s.writeInput)
 	_ = events.On(eventResize, s.resize)
@@ -122,7 +122,7 @@ func (s *sshServer) HandleHTTP(ctx context.Context, req *pluginv1.HTTPRequest) (
 }
 
 // HandleSocketEvent delegates protocol conversion and event dispatch to the
-// SDK EventBus.
+// SDK SocketListener.
 func (s *sshServer) HandleSocketEvent(ctx context.Context, event *pluginv1.SocketEvent) (*pluginv1.SocketEventReply, error) {
 	return s.sdk.HandleSocketEvent(ctx, event)
 }

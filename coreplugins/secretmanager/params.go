@@ -9,11 +9,11 @@ import (
 	"sort"
 	"strings"
 
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
+	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
 )
 
 func (p *secretManagerPlugin) patchParams(ctx context.Context, set map[string]string, deleteKeys []string) error {
-	reply, err := panel.NewHost().PatchParams(ctx, &panel.ParamsPatchRequest{Set: set, Delete: deleteKeys})
+	reply, err := pluginv1.NewHost().PatchParams(ctx, &pluginv1.ParamsPatchRequest{Set: set, Delete: deleteKeys})
 	if err != nil {
 		return err
 	}

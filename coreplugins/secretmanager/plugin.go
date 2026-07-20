@@ -10,7 +10,9 @@ import (
 	"sync"
 
 	"filippo.io/age"
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
+	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
+	arupawasm "github.com/SteelDrEgg/arupa-sdk/golang/wasm"
 )
 
 const (
@@ -40,7 +42,7 @@ type secretMeta struct {
 	Encryption     string   `json:"encryption,omitempty"`
 }
 
-func (p *secretManagerPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
+func (p *secretManagerPlugin) Register(ctx context.Context, req *pluginv1.RegisterRequest) (*pluginv1.RegisterReply, error) {
 	params := cloneParams(req.GetParams())
 	identityText := strings.TrimSpace(params[paramIdentity])
 	if identityText == "" {
@@ -66,32 +68,25 @@ func (p *secretManagerPlugin) Register(ctx context.Context, req *panel.RegisterR
 	p.identity = identity
 	p.mu.Unlock()
 
-	access := &panel.AccessPolicy{RequireAuth: true}
-	return &panel.RegisterReply{
+	return arupawasm.RegistrationReply(arupa.Registration{
 		Name:    "secret-manager",
 		Version: pluginVersion,
-		HttpRoutes: []*panel.HTTPRoute{
-			{Method: http.MethodGet, Pattern: "/keys", Access: access},
-			{Method: http.MethodPost, Pattern: "/keys/add", Access: access},
-			{Method: http.MethodPost, Pattern: "/keys/update", Access: access},
-			{Method: http.MethodPost, Pattern: "/keys/reveal", Access: access},
-			{Method: http.MethodPost, Pattern: "/keys/delete", Access: access},
+		HTTPRoutes: []arupa.HTTPRoute{
+			{Method: http.MethodGet, Pattern: "/keys", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/add", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/update", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/reveal", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/delete", Access: authenticatedAccess},
 		},
-		StaticMounts: []*panel.StaticMount{
-			{
-				Prefix:    "/keys/pages/index.html",
-				Directory: "$PLUGIN_ROOT/pages/index.html",
-				Access:    access,
-			},
-			{
-				Prefix:    "/keys/icon/",
-				Directory: "$PLUGIN_ROOT/icon",
-				Access:    access,
-			},
+		StaticMounts: []arupa.StaticMount{
+			{Prefix: "/keys/pages/index.html", Directory: "$PLUGIN_ROOT/pages/index.html", Access: authenticatedAccess},
+			{Prefix: "/keys/icon/", Directory: "$PLUGIN_ROOT/icon", Access: authenticatedAccess},
 		},
-	}, nil
+	})
 }
 
-func (p *secretManagerPlugin) HandleSocketEvent(context.Context, *panel.SocketEvent) (*panel.SocketEventReply, error) {
-	return &panel.SocketEventReply{}, nil
+var authenticatedAccess = arupa.AccessPolicy{RequireAuth: true}
+
+func (p *secretManagerPlugin) HandleSocketEvent(context.Context, *pluginv1.SocketEvent) (*pluginv1.SocketEventReply, error) {
+	return &pluginv1.SocketEventReply{}, nil
 }

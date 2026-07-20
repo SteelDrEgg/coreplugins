@@ -2,10 +2,13 @@
 
 package main
 
-import panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
+import pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
 
 func main() {}
 
 func init() {
-	panel.RegisterPlugin(&secretManagerPlugin{})
+	// The SDK owns HTTP and plugin-message protocol adaptation. Registration
+	// remains here because this plugin initializes and persists its identity
+	// from the host-provided parameter set.
+	pluginv1.RegisterPlugin(&secretManagerPlugin{})
 }
