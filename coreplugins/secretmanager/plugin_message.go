@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	topicSecretGet    = "secret-manager.secret.get"
-	topicSecretList   = "secret-manager.secret.list"
-	topicSecretAdd    = "secret-manager.secret.add"
-	topicSecretUpdate = "secret-manager.secret.update"
-	topicSecretDelete = "secret-manager.secret.delete"
+	topicSecretGet    = "secret.get"
+	topicSecretList   = "secret.list"
+	topicSecretAdd    = "secret.add"
+	topicSecretUpdate = "secret.update"
+	topicSecretDelete = "secret.delete"
 )
 
 type secretGetRequest struct {

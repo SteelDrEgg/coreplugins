@@ -17,11 +17,16 @@ import (
 
 const helloRoute = "/hello"
 
+const (
+	secretManagerPlugin = "secret-manager"
+	secretListTopic     = "secret.list"
+)
+
 func main() {}
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
-	wasm.RegisterPlugin(&wasm.HTTPPlugin{
+	plugin := &wasm.HTTPPlugin{
 		Registration: arupa.Registration{
 			Name:    "hello",
 			Version: pluginVersion,
@@ -30,15 +35,17 @@ func init() {
 				// This is an ingress prefix for Gin routes below /hello/.
 				{Method: http.MethodGet, Pattern: helloRoute + "/"},
 				{Method: http.MethodGet, Pattern: helloRoute + "/ping"},
+				{Method: http.MethodGet, Pattern: helloRoute + "/secrets"},
 				{Method: http.MethodPost, Pattern: helloRoute + "/echo"},
 				{Method: http.MethodPost, Pattern: helloRoute + "/users"},
 			},
 		},
-		Handler: newRouter(),
-	})
+	}
+	plugin.Handler = newRouter(plugin)
+	wasm.Register(plugin)
 }
 
-func newRouter() *gin.Engine {
+func newRouter(plugin *wasm.HTTPPlugin) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
@@ -56,6 +63,17 @@ func newRouter() *gin.Engine {
 			"id":      c.Param("id"),
 			"message": "dynamic Gin route matched",
 		})
+	})
+	router.GET(helloRoute+"/secrets", func(c *gin.Context) {
+		message, err := plugin.SendMessage(c.Request.Context(), arupa.OutgoingMessage{
+			Target: secretManagerPlugin,
+			Topic:  secretListTopic,
+		})
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(message))
 	})
 	router.POST(helloRoute+"/echo", func(c *gin.Context) {
 		body, err := io.ReadAll(c.Request.Body)
