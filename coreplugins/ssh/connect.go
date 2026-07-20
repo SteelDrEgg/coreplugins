@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -25,33 +26,37 @@ func (s *sshServer) connectSSH(ctx context.Context, ev *panel.SocketEvent) error
 		return s.emitError(ctx, ev.GetSocketId(), err.Error())
 	}
 
-	sshClient, err := sshc.Connect(hostConfig, authMethods)
+	connectCtx, pending := s.startConnection(ctx, ev.GetSocketId(), hostConfig.Timeout)
+	sshClient, err := sshc.Connect(connectCtx, hostConfig, authMethods)
 	if err != nil {
-		return s.emitError(ctx, ev.GetSocketId(), "SSH connection failed: "+err.Error())
+		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "SSH connection failed: "+err.Error())
 	}
 
 	session, err := sshClient.NewSession()
 	if err != nil {
 		_ = sshClient.Close()
-		return s.emitError(ctx, ev.GetSocketId(), "Failed to create SSH session: "+err.Error())
+		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "Failed to create SSH session: "+err.Error())
 	}
 
 	stdin, stdout, err := sshc.SetupTerminal(session, 24, 80)
 	if err != nil {
 		_ = session.Close()
 		_ = sshClient.Close()
-		return s.emitError(ctx, ev.GetSocketId(), "Failed to setup terminal: "+err.Error())
+		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "Failed to setup terminal: "+err.Error())
 	}
 
 	if err := session.Shell(); err != nil {
 		_ = stdin.Close()
 		_ = session.Close()
 		_ = sshClient.Close()
-		return s.emitError(ctx, ev.GetSocketId(), "Failed to start shell: "+err.Error())
+		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "Failed to start shell: "+err.Error())
 	}
 
 	sshSess := newSSHSession(sshClient, session, stdin)
-	s.putSession(ev.GetSocketId(), sshSess)
+	if !s.activateSession(ev.GetSocketId(), pending, sshSess) {
+		sshSess.close()
+		return nil
+	}
 	go s.pipeOutput(ev.GetSocketId(), stdout, sshSess)
 
 	return s.emit(ctx, ev.GetSocketId(), eventSSHConnected, map[string]any{
@@ -59,6 +64,22 @@ func (s *sshServer) connectSSH(ctx context.Context, ev *panel.SocketEvent) error
 		"port": req.Port,
 		"user": req.Username,
 	})
+}
+
+// emitConnectError reports a failed current attempt. Cancellation caused by a
+// disconnect or a newer attempt is expected and does not produce a stale UI
+// error; a deadline still produces a useful timeout message.
+func (s *sshServer) emitConnectError(emitCtx, connectCtx context.Context, socketID string, pending *pendingConnection, message string) error {
+	if !s.finishConnection(socketID, pending) {
+		return nil
+	}
+	if errors.Is(connectCtx.Err(), context.Canceled) {
+		return nil
+	}
+	if errors.Is(connectCtx.Err(), context.DeadlineExceeded) {
+		message = "SSH connection timed out"
+	}
+	return s.emitError(emitCtx, socketID, message)
 }
 
 // parseConnectRequest decodes and normalizes the first Socket.IO argument.

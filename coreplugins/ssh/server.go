@@ -39,12 +39,14 @@ type sshServer struct {
 	hostConn      *grpc.ClientConn
 	sshConfigPath string
 	sessions      map[string]*sshSession
+	pending       map[string]*pendingConnection
 }
 
 // newSSHServer constructs a plugin server with an empty session table.
 func newSSHServer() *sshServer {
 	return &sshServer{
 		sessions: make(map[string]*sshSession),
+		pending:  make(map[string]*pendingConnection),
 	}
 }
 

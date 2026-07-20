@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -21,6 +22,12 @@ type sshSession struct {
 	active bool
 }
 
+// pendingConnection represents an SSH connection that is still being
+// established for a browser socket.
+type pendingConnection struct {
+	cancel context.CancelFunc
+}
+
 // newSSHSession wraps an established SSH client, session, and stdin pipe.
 func newSSHSession(client *ssh.Client, session *ssh.Session, stdin io.WriteCloser) *sshSession {
 	return &sshSession{
@@ -31,15 +38,54 @@ func newSSHSession(client *ssh.Client, session *ssh.Session, stdin io.WriteClose
 	}
 }
 
-// putSession stores a socket's active session and closes any previous one.
-func (s *sshServer) putSession(socketID string, next *sshSession) {
+// startConnection creates a cancellable connection attempt for socketID.
+// A new attempt supersedes and cancels any previous pending attempt.
+func (s *sshServer) startConnection(parent context.Context, socketID string, timeout time.Duration) (context.Context, *pendingConnection) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	pending := &pendingConnection{cancel: cancel}
+
 	s.mu.Lock()
-	prev := s.sessions[socketID]
+	previous := s.pending[socketID]
+	s.pending[socketID] = pending
+	s.mu.Unlock()
+	if previous != nil {
+		previous.cancel()
+	}
+	return ctx, pending
+}
+
+// activateSession atomically replaces a completed pending connection with its
+// active session. It returns false if the attempt was superseded or cancelled.
+func (s *sshServer) activateSession(socketID string, pending *pendingConnection, next *sshSession) bool {
+	s.mu.Lock()
+	if s.pending[socketID] != pending {
+		s.mu.Unlock()
+		return false
+	}
+	delete(s.pending, socketID)
+	previous := s.sessions[socketID]
 	s.sessions[socketID] = next
 	s.mu.Unlock()
-	if prev != nil {
-		prev.close()
+
+	pending.cancel()
+	if previous != nil {
+		previous.close()
 	}
+	return true
+}
+
+// finishConnection removes a pending connection attempt. It returns false
+// when the attempt was already superseded or cancelled.
+func (s *sshServer) finishConnection(socketID string, pending *pendingConnection) bool {
+	s.mu.Lock()
+	if s.pending[socketID] != pending {
+		s.mu.Unlock()
+		return false
+	}
+	delete(s.pending, socketID)
+	s.mu.Unlock()
+	pending.cancel()
+	return true
 }
 
 // session returns the active SSH session for a socket id.
@@ -53,11 +99,30 @@ func (s *sshServer) session(socketID string) *sshSession {
 func (s *sshServer) cleanup(socketID string) {
 	s.mu.Lock()
 	sshSess := s.sessions[socketID]
+	pending := s.pending[socketID]
 	delete(s.sessions, socketID)
+	delete(s.pending, socketID)
 	s.mu.Unlock()
+	if pending != nil {
+		pending.cancel()
+	}
 	if sshSess != nil {
 		sshSess.close()
 	}
+}
+
+// cleanupSession removes target only when it is still the socket's current
+// session. An older output goroutine must never close a replacement session or
+// cancel its pending connection.
+func (s *sshServer) cleanupSession(socketID string, target *sshSession) {
+	s.mu.Lock()
+	if s.sessions[socketID] != target {
+		s.mu.Unlock()
+		return
+	}
+	delete(s.sessions, socketID)
+	s.mu.Unlock()
+	target.close()
 }
 
 // writeInput forwards terminal_input bytes to the SSH PTY.
@@ -121,7 +186,7 @@ func (s *sshServer) pipeOutput(socketID string, stdout io.Reader, sshSess *sshSe
 			} else {
 				_ = s.emit(context.Background(), socketID, eventSSHDisconnected, "SSH session closed")
 			}
-			s.cleanup(socketID)
+			s.cleanupSession(socketID, sshSess)
 			return
 		}
 	}

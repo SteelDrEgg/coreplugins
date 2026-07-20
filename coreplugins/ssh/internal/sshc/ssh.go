@@ -1,6 +1,7 @@
 package sshc
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -80,8 +81,9 @@ func LoadAuth(password string, identities []*Identity) ([]ssh.AuthMethod, error)
 	return authMethods, nil
 }
 
-// Connect creates an SSH connection.
-func Connect(host *Host, auth []ssh.AuthMethod) (*ssh.Client, error) {
+// Connect creates an SSH connection, cancelling both the TCP dial and SSH
+// handshake when ctx is done.
+func Connect(ctx context.Context, host *Host, auth []ssh.AuthMethod) (*ssh.Client, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            host.User,
 		Auth:            auth,
@@ -90,9 +92,39 @@ func Connect(host *Host, auth []ssh.AuthMethod) (*ssh.Client, error) {
 	}
 	addr := net.JoinHostPort(host.Hostname, host.Port)
 
-	client, err := ssh.Dial("tcp", addr, sshConfig)
+	conn, err := (&net.Dialer{Timeout: host.Timeout}).DialContext(ctx, "tcp", addr)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("connect to %s: %w", addr, ctx.Err())
+		}
 		return nil, fmt.Errorf("connect to %s: %w", addr, err)
 	}
-	return client, nil
+
+	// ssh.NewClientConn has no context parameter. Closing the connection when
+	// the context completes extends cancellation to the SSH handshake.
+	handshakeDone := make(chan struct{})
+	watcherDone := make(chan struct{})
+	go func() {
+		defer close(watcherDone)
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-handshakeDone:
+		}
+	}()
+	clientConn, channels, requests, err := ssh.NewClientConn(conn, addr, sshConfig)
+	close(handshakeDone)
+	<-watcherDone
+	if err != nil {
+		_ = conn.Close()
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("connect to %s: %w", addr, ctx.Err())
+		}
+		return nil, fmt.Errorf("connect to %s: %w", addr, err)
+	}
+	if ctx.Err() != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("connect to %s: %w", addr, ctx.Err())
+	}
+	return ssh.NewClient(clientConn, channels, requests), nil
 }
