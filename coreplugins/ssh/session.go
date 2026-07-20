@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
 )
 
 // sshSession holds one browser socket's SSH connection and PTY session.
@@ -126,15 +126,15 @@ func (s *sshServer) cleanupSession(socketID string, target *sshSession) {
 }
 
 // writeInput forwards terminal_input bytes to the SSH PTY.
-func (s *sshServer) writeInput(ctx context.Context, ev *panel.SocketEvent) error {
+func (s *sshServer) writeInput(_ context.Context, event arupa.SocketEvent, emitter arupa.Emitter) error {
 	var input string
-	if err := decodeFirstArg(ev.GetPayload(), &input); err != nil {
+	if err := decodeFirstArg(event.Payload, &input); err != nil {
 		return nil
 	}
 
-	sshSess := s.session(ev.GetSocketId())
+	sshSess := s.session(event.SocketID)
 	if sshSess == nil || !sshSess.isActive() {
-		return s.emitError(ctx, ev.GetSocketId(), "No active SSH session")
+		return emitError(emitter, event.SocketID, "No active SSH session")
 	}
 
 	sshSess.mu.Lock()
@@ -143,22 +143,22 @@ func (s *sshServer) writeInput(ctx context.Context, ev *panel.SocketEvent) error
 		return nil
 	}
 	if _, err := sshSess.stdin.Write([]byte(input)); err != nil {
-		return s.emitError(ctx, ev.GetSocketId(), "Failed to send input")
+		return emitError(emitter, event.SocketID, "Failed to send input")
 	}
 	return nil
 }
 
 // resize applies terminal resize events to the remote PTY.
-func (s *sshServer) resize(_ context.Context, ev *panel.SocketEvent) error {
+func (s *sshServer) resize(_ context.Context, event arupa.SocketEvent, _ arupa.Emitter) error {
 	var req resizeRequest
-	if err := decodeFirstArg(ev.GetPayload(), &req); err != nil {
+	if err := decodeFirstArg(event.Payload, &req); err != nil {
 		return nil
 	}
 	if req.Cols <= 0 || req.Rows <= 0 {
 		return nil
 	}
 
-	sshSess := s.session(ev.GetSocketId())
+	sshSess := s.session(event.SocketID)
 	if sshSess == nil || !sshSess.isActive() {
 		return nil
 	}
@@ -178,13 +178,13 @@ func (s *sshServer) pipeOutput(socketID string, stdout io.Reader, sshSess *sshSe
 	for sshSess.isActive() {
 		n, err := reader.Read(buf)
 		if n > 0 {
-			_ = s.emit(context.Background(), socketID, eventTerminalOutput, string(buf[:n]))
+			_ = s.sdk.EmitJSON(context.Background(), socketNamespace, socketID, eventTerminalOutput, string(buf[:n]))
 		}
 		if err != nil {
 			if err != io.EOF {
-				_ = s.emitError(context.Background(), socketID, "SSH session closed: "+err.Error())
+				_ = s.sdk.EmitJSON(context.Background(), socketNamespace, socketID, eventSSHError, "SSH session closed: "+err.Error())
 			} else {
-				_ = s.emit(context.Background(), socketID, eventSSHDisconnected, "SSH session closed")
+				_ = s.sdk.EmitJSON(context.Background(), socketNamespace, socketID, eventSSHDisconnected, "SSH session closed")
 			}
 			s.cleanupSession(socketID, sshSess)
 			return

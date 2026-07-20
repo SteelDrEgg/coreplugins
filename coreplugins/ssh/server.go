@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"sync"
 
-	"google.golang.org/grpc"
-
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
+	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/grpc"
+	arupagrpc "github.com/SteelDrEgg/arupa-sdk/golang/grpc"
 )
 
 const (
@@ -31,11 +32,11 @@ const (
 // It owns active SSH sessions keyed by Socket.IO socket id and uses the host
 // callback service to emit terminal output back to the browser.
 type sshServer struct {
-	panel.UnimplementedPluginServer
+	pluginv1.UnimplementedPluginServer
 
+	sdk           *arupagrpc.HTTPPlugin
+	host          hostBridge
 	mu            sync.RWMutex
-	host          panel.HostClient
-	hostConn      *grpc.ClientConn
 	sshConfigPath string
 	sessions      map[string]*sshSession
 	pending       map[string]*pendingConnection
@@ -47,16 +48,62 @@ type sshServer struct {
 
 // newSSHServer constructs a plugin server with an empty session table.
 func newSSHServer() *sshServer {
-	return &sshServer{
+	s := &sshServer{
 		sessions: make(map[string]*sshSession),
 		pending:  make(map[string]*pendingConnection),
 		settings: make(map[string]savedConnection),
 	}
+	events := arupa.NewEventBus()
+	_ = events.On(eventConnectSSH, s.connectSSH)
+	_ = events.On(eventTerminalInput, s.writeInput)
+	_ = events.On(eventResize, s.resize)
+	_ = events.On(eventDisconnect, func(_ context.Context, event arupa.SocketEvent, _ arupa.Emitter) error {
+		s.cleanup(event.SocketID)
+		return nil
+	})
+
+	authenticated := arupa.AccessPolicy{RequireAuth: true}
+	s.sdk = &arupagrpc.HTTPPlugin{
+		Registration: arupa.Registration{
+			Name:    pluginDisplayName,
+			Version: pluginVersion,
+			StaticMounts: []arupa.StaticMount{
+				{
+					Prefix:    "/ssh/pages/terminal.html",
+					Directory: "$PLUGIN_ROOT/pages/terminal.html",
+					Access:    authenticated,
+				},
+				{
+					Prefix:    "/ssh/assets/",
+					Directory: "$PLUGIN_ROOT/assets",
+					Access:    authenticated,
+				},
+			},
+			HTTPRoutes: []arupa.HTTPRoute{
+				{Method: http.MethodGet, Pattern: savedConnectionsPath, Access: authenticated},
+				{Method: http.MethodPost, Pattern: savedConnectionsPath, Access: authenticated},
+			},
+			SocketNamespaces: []arupa.SocketNamespace{
+				{
+					Name:   socketNamespace,
+					Events: []string{eventConnectSSH, eventTerminalInput, eventResize, eventDisconnect},
+					Access: authenticated,
+				},
+			},
+		},
+		Handler: http.HandlerFunc(s.handleConnectionsHTTP),
+		Events:  events,
+	}
+	return s
 }
 
 // Register declares the plugin's static terminal page and Socket.IO namespace.
-func (s *sshServer) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
-	if err := s.configureHostCallback(ctx, req); err != nil {
+func (s *sshServer) Register(ctx context.Context, req *pluginv1.RegisterRequest) (*pluginv1.RegisterReply, error) {
+	reply, err := s.sdk.Register(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.host.configure(ctx, req); err != nil {
 		return nil, err
 	}
 
@@ -65,55 +112,22 @@ func (s *sshServer) Register(ctx context.Context, req *panel.RegisterRequest) (*
 		return nil, err
 	}
 	s.log(ctx, "info", "ssh plugin registered")
-
-	authenticated := &panel.AccessPolicy{RequireAuth: true}
-	return &panel.RegisterReply{
-		Name:    pluginDisplayName,
-		Version: pluginVersion,
-		StaticMounts: []*panel.StaticMount{
-			{
-				Prefix:    "/ssh/pages/terminal.html",
-				Directory: "$PLUGIN_ROOT/pages/terminal.html",
-				Access:    authenticated,
-			},
-			{
-				Prefix:    "/ssh/assets/",
-				Directory: "$PLUGIN_ROOT/assets",
-				Access:    authenticated,
-			},
-		},
-		HttpRoutes: []*panel.HTTPRoute{
-			{Method: "GET", Pattern: savedConnectionsPath, Access: authenticated},
-			{Method: "POST", Pattern: savedConnectionsPath, Access: authenticated},
-		},
-		SocketNamespaces: []*panel.SocketNamespace{
-			{
-				Name:   socketNamespace,
-				Events: []string{eventConnectSSH, eventTerminalInput, eventResize, eventDisconnect},
-				Access: authenticated,
-			},
-		},
-	}, nil
+	return reply, nil
 }
 
-// HandleSocketEvent routes browser terminal events to the SSH session layer.
-func (s *sshServer) HandleSocketEvent(ctx context.Context, ev *panel.SocketEvent) (*panel.SocketEventReply, error) {
-	switch ev.GetEvent() {
-	case eventConnectSSH:
-		return &panel.SocketEventReply{}, s.connectSSH(ctx, ev)
-	case eventTerminalInput:
-		return &panel.SocketEventReply{}, s.writeInput(ctx, ev)
-	case eventResize:
-		return &panel.SocketEventReply{}, s.resize(ctx, ev)
-	case eventDisconnect:
-		s.cleanup(ev.GetSocketId())
-		return &panel.SocketEventReply{}, nil
-	default:
-		return &panel.SocketEventReply{}, nil
-	}
+// HandleHTTP delegates protocol conversion to the SDK and application routing
+// to a standard net/http handler.
+func (s *sshServer) HandleHTTP(ctx context.Context, req *pluginv1.HTTPRequest) (*pluginv1.HTTPResponse, error) {
+	return s.sdk.HandleHTTP(ctx, req)
+}
+
+// HandleSocketEvent delegates protocol conversion and event dispatch to the
+// SDK EventBus.
+func (s *sshServer) HandleSocketEvent(ctx context.Context, event *pluginv1.SocketEvent) (*pluginv1.SocketEventReply, error) {
+	return s.sdk.HandleSocketEvent(ctx, event)
 }
 
 // HandlePluginMessage is unused by the SSH plugin.
-func (s *sshServer) HandlePluginMessage(context.Context, *panel.PluginMessage) (*panel.PluginMessageReply, error) {
-	return &panel.PluginMessageReply{}, nil
+func (s *sshServer) HandlePluginMessage(context.Context, *pluginv1.PluginMessage) (*pluginv1.PluginMessageReply, error) {
+	return &pluginv1.PluginMessageReply{}, nil
 }

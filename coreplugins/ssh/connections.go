@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
-
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 const (
@@ -38,24 +37,26 @@ type savedConnectionsResponse struct {
 	Connections []savedConnection `json:"connections"`
 }
 
-func (s *sshServer) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*panel.HTTPResponse, error) {
-	if strings.TrimRight(req.GetPath(), "/") != savedConnectionsPath {
-		return connectionJSONResponse(http.StatusNotFound, map[string]any{
+func (s *sshServer) handleConnectionsHTTP(w http.ResponseWriter, req *http.Request) {
+	if strings.TrimRight(req.URL.Path, "/") != savedConnectionsPath {
+		writeConnectionJSON(w, http.StatusNotFound, map[string]any{
 			"success": false,
 			"message": "Not found",
 		})
+		return
 	}
 
-	switch req.GetMethod() {
+	switch req.Method {
 	case http.MethodGet:
-		return connectionJSONResponse(http.StatusOK, savedConnectionsResponse{
+		writeConnectionJSON(w, http.StatusOK, savedConnectionsResponse{
 			Success:     true,
 			Connections: s.savedConnections(),
 		})
 	case http.MethodPost:
-		return s.saveConnectionResponse(ctx, req.GetBody())
+		s.saveConnectionResponse(w, req)
 	default:
-		return connectionJSONResponse(http.StatusMethodNotAllowed, map[string]any{
+		w.Header().Set("Allow", http.MethodGet+", "+http.MethodPost)
+		writeConnectionJSON(w, http.StatusMethodNotAllowed, map[string]any{
 			"success": false,
 			"message": "Method not allowed",
 		})
@@ -104,21 +105,32 @@ func (s *sshServer) savedConnections() []savedConnection {
 	return connections
 }
 
-func (s *sshServer) saveConnectionResponse(ctx context.Context, body []byte) (*panel.HTTPResponse, error) {
+func (s *sshServer) saveConnectionResponse(w http.ResponseWriter, req *http.Request) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		writeConnectionJSON(w, http.StatusBadRequest, map[string]any{
+			"success": false,
+			"message": "Invalid request body",
+		})
+		return
+	}
+
 	var connection savedConnection
 	if err := json.Unmarshal(body, &connection); err != nil {
-		return connectionJSONResponse(http.StatusBadRequest, map[string]any{
+		writeConnectionJSON(w, http.StatusBadRequest, map[string]any{
 			"success": false,
 			"message": "Invalid JSON body",
 		})
+		return
 	}
 
 	normalized, err := normalizeSavedConnection(connection)
 	if err != nil {
-		return connectionJSONResponse(http.StatusBadRequest, map[string]any{
+		writeConnectionJSON(w, http.StatusBadRequest, map[string]any{
 			"success": false,
 			"message": err.Error(),
 		})
+		return
 	}
 
 	s.settingsWriteMu.Lock()
@@ -142,40 +154,33 @@ func (s *sshServer) saveConnectionResponse(ctx context.Context, body []byte) (*p
 
 	encoded, err := json.Marshal(connections)
 	if err != nil {
-		return nil, fmt.Errorf("encode saved SSH connections: %w", err)
+		writeConnectionJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false,
+			"message": "Failed to encode SSH connections",
+		})
+		return
 	}
-	if err := s.patchConnectionParams(ctx, string(encoded)); err != nil {
-		return connectionJSONResponse(http.StatusInternalServerError, map[string]any{
+	if err := s.patchConnectionParams(req.Context(), string(encoded)); err != nil {
+		writeConnectionJSON(w, http.StatusInternalServerError, map[string]any{
 			"success": false,
 			"message": err.Error(),
 		})
+		return
 	}
 
 	s.settingsMu.Lock()
 	s.settings = next
 	s.settingsMu.Unlock()
-	return connectionJSONResponse(http.StatusOK, map[string]any{
+	writeConnectionJSON(w, http.StatusOK, map[string]any{
 		"success":    true,
 		"connection": normalized,
 	})
 }
 
 func (s *sshServer) patchConnectionParams(ctx context.Context, encoded string) error {
-	s.mu.RLock()
-	host := s.host
-	s.mu.RUnlock()
-	if host == nil {
-		return fmt.Errorf("host callback is unavailable")
-	}
-
-	reply, err := host.PatchParams(ctx, &panel.ParamsPatchRequest{
-		Set: map[string]string{savedConnectionsParam: encoded},
-	})
+	err := s.host.patchParams(ctx, map[string]string{savedConnectionsParam: encoded})
 	if err != nil {
 		return fmt.Errorf("persist SSH connections: %w", err)
-	}
-	if reply.GetError() != "" {
-		return fmt.Errorf("persist SSH connections: %s", reply.GetError())
 	}
 	return nil
 }
@@ -220,17 +225,11 @@ func normalizeSavedConnection(connection savedConnection) (savedConnection, erro
 	return connection, nil
 }
 
-func connectionJSONResponse(status int, payload any) (*panel.HTTPResponse, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+func writeConnectionJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		return
 	}
-	return &panel.HTTPResponse{
-		Status: int32(status),
-		Headers: map[string]string{
-			"Content-Type":  "application/json; charset=utf-8",
-			"Cache-Control": "no-store",
-		},
-		Body: body,
-	}, nil
 }

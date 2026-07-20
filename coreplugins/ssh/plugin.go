@@ -7,7 +7,7 @@ import (
 	hcplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
+	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/grpc"
 )
 
 // sshPlugin adapts sshServer to the HashiCorp go-plugin gRPC interface.
@@ -17,7 +17,7 @@ type sshPlugin struct {
 
 // GRPCServer registers the Plugin service implemented by sshServer.
 func (p *sshPlugin) GRPCServer(_ *hcplugin.GRPCBroker, s *grpc.Server) error {
-	panel.RegisterPluginServer(s, newSSHServer())
+	pluginv1.RegisterPluginServer(s, newSSHServer())
 	return nil
 }
 

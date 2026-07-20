@@ -9,59 +9,59 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
 	"github.com/SteelDrEgg/coreplugins/coreplugins/ssh/internal/sshc"
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/grpc/proto"
 )
 
 // connectSSH creates an SSH client/session from a browser connect_ssh event.
-func (s *sshServer) connectSSH(ctx context.Context, ev *panel.SocketEvent) error {
-	req, err := parseConnectRequest(ev.GetPayload())
+func (s *sshServer) connectSSH(ctx context.Context, event arupa.SocketEvent, emitter arupa.Emitter) error {
+	req, err := parseConnectRequest(event.Payload)
 	if err != nil {
-		return s.emitError(ctx, ev.GetSocketId(), "Invalid connection data: "+err.Error())
+		return emitError(emitter, event.SocketID, "Invalid connection data: "+err.Error())
 	}
 
 	hostConfig := s.resolveHostConfig(req)
 	authMethods, err := s.authMethods(req, hostConfig)
 	if err != nil {
-		return s.emitError(ctx, ev.GetSocketId(), err.Error())
+		return emitError(emitter, event.SocketID, err.Error())
 	}
 	req.Password = ""
 	req.Passphrase = ""
 
-	connectCtx, pending := s.startConnection(ctx, ev.GetSocketId(), hostConfig.Timeout)
+	connectCtx, pending := s.startConnection(ctx, event.SocketID, hostConfig.Timeout)
 	sshClient, err := sshc.Connect(connectCtx, hostConfig, authMethods)
 	if err != nil {
-		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "SSH connection failed: "+err.Error())
+		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "SSH connection failed: "+err.Error())
 	}
 
 	session, err := sshClient.NewSession()
 	if err != nil {
 		_ = sshClient.Close()
-		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "Failed to create SSH session: "+err.Error())
+		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "Failed to create SSH session: "+err.Error())
 	}
 
 	stdin, stdout, err := sshc.SetupTerminal(session, 24, 80)
 	if err != nil {
 		_ = session.Close()
 		_ = sshClient.Close()
-		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "Failed to setup terminal: "+err.Error())
+		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "Failed to setup terminal: "+err.Error())
 	}
 
 	if err := session.Shell(); err != nil {
 		_ = stdin.Close()
 		_ = session.Close()
 		_ = sshClient.Close()
-		return s.emitConnectError(ctx, connectCtx, ev.GetSocketId(), pending, "Failed to start shell: "+err.Error())
+		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "Failed to start shell: "+err.Error())
 	}
 
 	sshSess := newSSHSession(sshClient, session, stdin)
-	if !s.activateSession(ev.GetSocketId(), pending, sshSess) {
+	if !s.activateSession(event.SocketID, pending, sshSess) {
 		sshSess.close()
 		return nil
 	}
-	go s.pipeOutput(ev.GetSocketId(), stdout, sshSess)
+	go s.pipeOutput(event.SocketID, stdout, sshSess)
 
-	return s.emit(ctx, ev.GetSocketId(), eventSSHConnected, map[string]any{
+	return arupa.EmitJSON(emitter, socketNamespace, event.SocketID, eventSSHConnected, map[string]any{
 		"host": req.Host,
 		"port": req.Port,
 		"user": req.Username,
@@ -71,7 +71,7 @@ func (s *sshServer) connectSSH(ctx context.Context, ev *panel.SocketEvent) error
 // emitConnectError reports a failed current attempt. Cancellation caused by a
 // disconnect or a newer attempt is expected and does not produce a stale UI
 // error; a deadline still produces a useful timeout message.
-func (s *sshServer) emitConnectError(emitCtx, connectCtx context.Context, socketID string, pending *pendingConnection, message string) error {
+func (s *sshServer) emitConnectError(connectCtx context.Context, socketID string, pending *pendingConnection, emitter arupa.Emitter, message string) error {
 	if !s.finishConnection(socketID, pending) {
 		return nil
 	}
@@ -81,7 +81,11 @@ func (s *sshServer) emitConnectError(emitCtx, connectCtx context.Context, socket
 	if errors.Is(connectCtx.Err(), context.DeadlineExceeded) {
 		message = "SSH connection timed out"
 	}
-	return s.emitError(emitCtx, socketID, message)
+	return emitError(emitter, socketID, message)
+}
+
+func emitError(emitter arupa.Emitter, socketID, message string) error {
+	return arupa.EmitJSON(emitter, socketNamespace, socketID, eventSSHError, message)
 }
 
 // parseConnectRequest decodes and normalizes the first Socket.IO argument.
