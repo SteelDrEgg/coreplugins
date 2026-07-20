@@ -34,7 +34,7 @@ const (
 type sshServer struct {
 	pluginv1.UnimplementedPluginServer
 
-	sdk           *arupagrpc.HTTPPlugin
+	sdk           *arupagrpc.Plugin
 	host          hostBridge
 	mu            sync.RWMutex
 	sshConfigPath string
@@ -63,7 +63,7 @@ func newSSHServer() *sshServer {
 	})
 
 	authenticated := arupa.AccessPolicy{RequireAuth: true}
-	s.sdk = &arupagrpc.HTTPPlugin{
+	s.sdk = &arupagrpc.Plugin{
 		Registration: arupa.Registration{
 			Name:    pluginDisplayName,
 			Version: pluginVersion,

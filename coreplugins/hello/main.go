@@ -26,7 +26,7 @@ func main() {}
 
 func init() {
 	gin.SetMode(gin.ReleaseMode)
-	plugin := &wasm.HTTPPlugin{
+	plugin := &wasm.Plugin{
 		Registration: arupa.Registration{
 			Name:    "hello",
 			Version: pluginVersion,
@@ -45,7 +45,7 @@ func init() {
 	wasm.Register(plugin)
 }
 
-func newRouter(plugin *wasm.HTTPPlugin) *gin.Engine {
+func newRouter(plugin *wasm.Plugin) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 

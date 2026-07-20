@@ -16,7 +16,7 @@ import (
 const hostCallbackTokenHeader = "x-panel-token"
 
 // hostBridge contains the host operations that are not yet exposed by the SDK.
-// Background Socket.IO emits go through arupagrpc.HTTPPlugin instead.
+// Background Socket.IO emits go through arupagrpc.Plugin instead.
 type hostBridge struct {
 	mu     sync.RWMutex
 	client hostOperations
