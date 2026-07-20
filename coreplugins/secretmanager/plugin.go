@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,8 +18,6 @@ const (
 	paramSecretPrefix = "secretmgr.secret."
 	paramPolicyPrefix = "secretmgr.policy."
 	paramMetaPrefix   = "secretmgr.meta."
-
-	topicSecretGet = "secret-manager.secret.get"
 
 	maxSecretSize = 1 << 20
 
@@ -41,11 +38,6 @@ type secretMeta struct {
 	AllowedPlugins []string `json:"allowed_plugins"`
 	UpdatedAt      string   `json:"updated_at"`
 	Encryption     string   `json:"encryption,omitempty"`
-}
-
-type secretGetRequest struct {
-	Name       string `json:"name"`
-	Passphrase string `json:"passphrase"`
 }
 
 func (p *secretManagerPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*panel.RegisterReply, error) {
@@ -98,32 +90,6 @@ func (p *secretManagerPlugin) Register(ctx context.Context, req *panel.RegisterR
 			},
 		},
 	}, nil
-}
-
-func (p *secretManagerPlugin) HandlePluginMessage(_ context.Context, req *panel.PluginMessage) (*panel.PluginMessageReply, error) {
-	if req.GetTopic() != topicSecretGet {
-		return pluginMessageError("unsupported topic")
-	}
-
-	var payload secretGetRequest
-	if err := json.Unmarshal(req.GetPayload(), &payload); err != nil {
-		return pluginMessageError("invalid request payload")
-	}
-	if err := validateSecretName(payload.Name); err != nil {
-		return pluginMessageError(err.Error())
-	}
-	if !p.allowed(payload.Name, req.GetSource()) {
-		return pluginMessageError("plugin is not allowed to access this secret")
-	}
-	_, err := p.secretEncryption(payload.Name)
-	if err != nil {
-		return pluginMessageError(err.Error())
-	}
-	value, err := p.decryptSecret(payload.Name, payload.Passphrase)
-	if err != nil {
-		return pluginMessageError(err.Error())
-	}
-	return &panel.PluginMessageReply{Message: value}, nil
 }
 
 func (p *secretManagerPlugin) HandleSocketEvent(context.Context, *panel.SocketEvent) (*panel.SocketEventReply, error) {

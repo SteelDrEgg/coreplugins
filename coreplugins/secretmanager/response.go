@@ -22,7 +22,3 @@ func jsonResponse(status int, payload any) (*panel.HTTPResponse, error) {
 		Body: body,
 	}, nil
 }
-
-func pluginMessageError(message string) (*panel.PluginMessageReply, error) {
-	return &panel.PluginMessageReply{Error: message}, nil
-}
