@@ -3,44 +3,24 @@
 package main
 
 import (
-	"context"
-
-	panel "github.com/SteelDrEgg/coreplugins/pluginsdk/wasm/proto"
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
+	"github.com/SteelDrEgg/arupa-sdk/golang/wasm"
 )
 
 func main() {}
 
 func init() {
-	panel.RegisterPlugin(loginPlugin{})
-}
-
-type loginPlugin struct{}
-
-func (loginPlugin) Register(_ context.Context, _ *panel.RegisterRequest) (*panel.RegisterReply, error) {
-	return &panel.RegisterReply{
-		Name:    "login",
-		Version: pluginVersion,
-		StaticMounts: []*panel.StaticMount{
-			{
-				Prefix:    "/pages/login.html",
-				Directory: "$PLUGIN_ROOT/pages/login.html",
-			},
-			{
-				Prefix:    "/pages/logout.html",
-				Directory: "$PLUGIN_ROOT/pages/logout.html",
+	plugin := &wasm.Plugin{
+		Registration: arupa.Registration{
+			Name:    webAssetsNamespace,
+			Version: pluginVersion,
+			StaticMounts: []arupa.StaticMount{
+				{Prefix: "/pages/login.html", Directory: "$PLUGIN_ROOT/pages/login.html"},
+				{Prefix: "/pages/logout.html", Directory: "$PLUGIN_ROOT/pages/logout.html"},
 			},
 		},
-	}, nil
+	}
+	wasm.Register(plugin)
 }
 
-func (loginPlugin) HandleHTTP(_ context.Context, _ *panel.HTTPRequest) (*panel.HTTPResponse, error) {
-	return &panel.HTTPResponse{Status: 404}, nil
-}
-
-func (loginPlugin) HandleSocketEvent(_ context.Context, _ *panel.SocketEvent) (*panel.SocketEventReply, error) {
-	return &panel.SocketEventReply{}, nil
-}
-
-func (loginPlugin) HandlePluginMessage(_ context.Context, _ *panel.PluginMessage) (*panel.PluginMessageReply, error) {
-	return &panel.PluginMessageReply{}, nil
-}
+const webAssetsNamespace = "login"
