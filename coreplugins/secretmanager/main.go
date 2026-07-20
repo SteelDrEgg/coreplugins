@@ -10,5 +10,5 @@ func init() {
 	// The SDK owns HTTP and plugin-message protocol adaptation. Registration
 	// remains here because this plugin initializes and persists its identity
 	// from the host-provided parameter set.
-	pluginv1.RegisterPlugin(&secretManagerPlugin{})
+	pluginv1.RegisterPlugin(newSecretManagerPlugin())
 }

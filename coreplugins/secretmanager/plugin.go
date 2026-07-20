@@ -32,6 +32,7 @@ type secretManagerPlugin struct {
 	writeMu  sync.Mutex
 	params   map[string]string
 	identity *age.X25519Identity
+	messages *arupa.MessageListener
 }
 
 type secretMeta struct {
