@@ -7,6 +7,8 @@
 //     the host, and seeds a value into the shared KV store.
 //   - HandleHTTP: reads back the seeded KV value, and persists a new greeting
 //     into Params through Host.PatchParams.
+//   - HandleHTTP: requests the "test" secret from secret-manager through
+//     Host.SendPluginMessage.
 //   - HandleSocketEvent: replies to "ping" by emitting "pong" back to the
 //     calling socket (the emit-in-reply pattern used by WASM plugins).
 package main
@@ -27,8 +29,11 @@ func init() {
 }
 
 const (
-	kvNamespace = "hello"
-	kvGreeting  = "greeting"
+	kvNamespace             = "hello"
+	kvGreeting              = "greeting"
+	secretManagerPluginName = "secret-manager"
+	secretGetTopic          = "secret-manager.secret.get"
+	testSecretName          = "test"
 )
 
 type helloPlugin struct{}
@@ -61,6 +66,7 @@ func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*p
 		HttpRoutes: []*panel.HTTPRoute{
 			{Method: "GET", Pattern: "/hello"},
 			{Method: "GET", Pattern: "/hello/private", Access: &panel.AccessPolicy{RequireAuth: true}},
+			{Method: "GET", Pattern: "/hello/secret", Access: &panel.AccessPolicy{RequireAuth: true}},
 			{Method: "POST", Pattern: "/hello/greeting", Access: &panel.AccessPolicy{RequireAuth: true}},
 		},
 		SocketNamespaces: []*panel.SocketNamespace{
@@ -77,6 +83,10 @@ func (helloPlugin) Register(ctx context.Context, req *panel.RegisterRequest) (*p
 
 func (helloPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*panel.HTTPResponse, error) {
 	host := panel.NewHost()
+
+	if req.GetMethod() == "GET" && req.GetPath() == "/hello/secret" {
+		return getTestSecret(ctx, host)
+	}
 
 	if req.GetMethod() == "POST" && req.GetPath() == "/hello/greeting" {
 		return updateGreeting(ctx, host, req)
@@ -95,6 +105,36 @@ func (helloPlugin) HandleHTTP(ctx context.Context, req *panel.HTTPRequest) (*pan
 		Status:  200,
 		Headers: map[string]string{"Content-Type": "text/plain; charset=utf-8"},
 		Body:    []byte(body),
+	}, nil
+}
+
+func getTestSecret(ctx context.Context, host panel.Host) (*panel.HTTPResponse, error) {
+	payload, err := json.Marshal(map[string]string{"name": testSecretName})
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := host.SendPluginMessage(ctx, &panel.PluginMessage{
+		Target: secretManagerPluginName,
+		Topic:  secretGetTopic,
+		//Topic:   "secret-manager.secret.get",
+		Payload: payload,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if reply.GetError() != "" {
+		return &panel.HTTPResponse{
+			Status:  502,
+			Headers: map[string]string{"Content-Type": "text/plain; charset=utf-8"},
+			Body:    []byte("get test secret: " + reply.GetError() + "\n"),
+		}, nil
+	}
+
+	return &panel.HTTPResponse{
+		Status:  200,
+		Headers: map[string]string{"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"},
+		Body:    []byte(reply.GetMessage() + "\n"),
 	}, nil
 }
 

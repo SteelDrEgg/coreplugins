@@ -1,5 +1,5 @@
 Name: hello
-Version: 0.1.0
+Version: 0.1.1
 Type: wasm
 ContractVersion: 1
 Command: $PLUGIN_ROOT/hello.wasm

@@ -11,6 +11,7 @@ and PTY creation.
 - `plugin.go` adapts the server to HashiCorp go-plugin.
 - `server.go` declares static mounts, Socket.IO events, and dispatch.
 - `connect.go` resolves host config and opens SSH sessions.
+- `connections.go` validates and persists non-sensitive connection profiles.
 - `session.go` owns PTY input, resize, output, and cleanup.
 - `host.go` wraps host callback logging and Socket.IO emits.
 - `payload.go` contains small JSON/path helpers.
@@ -26,6 +27,26 @@ The terminal page connects to namespace `/ssh` and emits:
 
 The plugin emits `ssh_connected`, `terminal_output`, `ssh_error`, and
 `ssh_disconnected` back to the calling socket.
+
+The terminal page reads Secret Manager metadata from `GET /keys` and reveals a
+selected password through `POST /keys/reveal`. Secret Manager is a password
+source, not a separate SSH authentication method. The authenticated browser
+performs these same-origin HTTP calls, and only the revealed value is sent as
+the SSH password.
+
+## Saved connections
+
+Authenticated clients can list or upsert connection profiles at:
+
+```text
+GET  /ssh/api/connections
+POST /ssh/api/connections
+```
+
+Profiles are persisted in the `ssh.connections` plugin Param. They contain only
+the profile name, host, port, username, authentication type, private-key path,
+or Secret Manager password reference. Passwords, revealed secret values, and
+passphrases are never persisted.
 
 ## Build
 

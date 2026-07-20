@@ -1,0 +1,9 @@
+Name: secret-manager
+Version: 0.1.1
+Type: wasm
+ContractVersion: 1
+Command: $PLUGIN_ROOT/secret_manager.wasm
+DisplayName: Secrets
+Category: core
+Entry: /keys/pages/index.html
+Icon: /assets/icon/key.svg

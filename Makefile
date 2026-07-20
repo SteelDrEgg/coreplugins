@@ -4,7 +4,7 @@ PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
 PLUGIN_DIR ?= plugins
 DIST_DIR ?= dist
 
-CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager ssh web-sdk
+CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager secret-manager ssh web-sdk
 
 .PHONY: tools proto proto-grpc proto-wasm plugins $(CORE_PLUGIN_TARGETS) clean
 
@@ -53,10 +53,13 @@ navigator:
 plugin-manager:
 	$(MAKE) -C coreplugins/pluginmanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
 
+secret-manager:
+	$(MAKE) -C coreplugins/secretmanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+
 ssh:
 	$(MAKE) -C coreplugins/ssh package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
 
 ## clean: remove build artifacts
 clean:
 	rm -rf $(DIST_DIR) tmp
-	rm -f $(PLUGIN_DIR)/hello.plg $(PLUGIN_DIR)/web-assets.plg $(PLUGIN_DIR)/login.plg $(PLUGIN_DIR)/navigator.plg $(PLUGIN_DIR)/plugin-manager.plg $(PLUGIN_DIR)/ssh.plg
+	rm -f $(PLUGIN_DIR)/hello.plg $(PLUGIN_DIR)/web-assets.plg $(PLUGIN_DIR)/login.plg $(PLUGIN_DIR)/navigator.plg $(PLUGIN_DIR)/plugin-manager.plg $(PLUGIN_DIR)/secret-manager.plg $(PLUGIN_DIR)/ssh.plg

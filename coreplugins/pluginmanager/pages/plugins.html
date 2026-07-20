@@ -124,7 +124,7 @@
                             <input class="input w-full font-mono text-xs" id="pluginTempDir" name="plugin_temp_dir" autocomplete="off">
                         </label>
                         <button class="btn btn-primary" id="saveConfigBtn" type="submit">Save Config</button>
-                        <div class="alert hidden text-sm" id="messageBox" role="status"></div>
+                        <div class="alert alert-soft hidden text-sm" id="messageBox" role="status"></div>
                     </form>
                 </div>
 
@@ -219,7 +219,7 @@
         function showMessage(text, kind) {
             const kindClass = kind === "ok" ? "alert-success" : kind === "error" ? "alert-error" : "alert-info";
             els.messageBox.textContent = text || "";
-            els.messageBox.className = text ? `alert ${kindClass} text-sm` : "alert hidden text-sm";
+            els.messageBox.className = text ? `alert alert-soft ${kindClass} text-sm` : "alert hidden text-sm";
         }
 
         function pluginDisplayName(plugin) {
@@ -374,8 +374,8 @@
                                 </div>
                             </div>
                         </td>
-                        <td><span class="badge ${statusClass(status)}">${escapeHTML(statusText)}</span></td>
-                        <td><span class="badge badge-neutral">${escapeHTML(plugin.type || "-")}</span></td>
+                        <td><span class="badge badge-sm badge-soft ${statusClass(status)}">${escapeHTML(statusText)}</span></td>
+                        <td><span class="badge basge-sm badge-neutral">${escapeHTML(plugin.type || "-")}</span></td>
                         <td class="max-w-64 truncate font-mono text-xs text-base-content/70" title="${escapeHTML(packagePath)}">${escapeHTML(packagePath)}</td>
                         <td>
                             <div class="flex min-w-52 flex-wrap items-center gap-2">
@@ -429,7 +429,7 @@
                     <div class="rounded-lg border border-base-300 p-3">
                         <div class="flex items-center justify-between gap-2 font-semibold">
                             <span class="truncate">${escapeHTML(item.name || item.instance_id)}</span>
-                            <span class="badge badge-success">${escapeHTML(item.type || "-")}</span>
+                            <span class="badge badge-success badge-sm badge-soft">${escapeHTML(item.type || "-")}</span>
                         </div>
                         <div class="mt-2 grid gap-1 text-xs text-base-content/60">
                             <div class="truncate font-mono" title="${escapeHTML(runtimePath)}">${escapeHTML(runtimePath)}</div>

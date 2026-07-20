@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"sync"
 
 	"google.golang.org/grpc"
@@ -39,12 +38,19 @@ type sshServer struct {
 	hostConn      *grpc.ClientConn
 	sshConfigPath string
 	sessions      map[string]*sshSession
+	pending       map[string]*pendingConnection
+
+	settingsMu      sync.RWMutex
+	settings        map[string]savedConnection
+	settingsWriteMu sync.Mutex
 }
 
 // newSSHServer constructs a plugin server with an empty session table.
 func newSSHServer() *sshServer {
 	return &sshServer{
 		sessions: make(map[string]*sshSession),
+		pending:  make(map[string]*pendingConnection),
+		settings: make(map[string]savedConnection),
 	}
 }
 
@@ -55,8 +61,12 @@ func (s *sshServer) Register(ctx context.Context, req *panel.RegisterRequest) (*
 	}
 
 	s.sshConfigPath = req.GetParams()["ssh_config_path"]
+	if err := s.loadSavedConnections(req.GetParams()[savedConnectionsParam]); err != nil {
+		return nil, err
+	}
 	s.log(ctx, "info", "ssh plugin registered")
 
+	authenticated := &panel.AccessPolicy{RequireAuth: true}
 	return &panel.RegisterReply{
 		Name:    pluginDisplayName,
 		Version: pluginVersion,
@@ -64,27 +74,26 @@ func (s *sshServer) Register(ctx context.Context, req *panel.RegisterRequest) (*
 			{
 				Prefix:    "/ssh/pages/terminal.html",
 				Directory: "$PLUGIN_ROOT/pages/terminal.html",
-				Access:    &panel.AccessPolicy{RequireAuth: true},
+				Access:    authenticated,
 			},
 			{
 				Prefix:    "/ssh/assets/",
 				Directory: "$PLUGIN_ROOT/assets",
-				Access:    &panel.AccessPolicy{RequireAuth: true},
+				Access:    authenticated,
 			},
+		},
+		HttpRoutes: []*panel.HTTPRoute{
+			{Method: "GET", Pattern: savedConnectionsPath, Access: authenticated},
+			{Method: "POST", Pattern: savedConnectionsPath, Access: authenticated},
 		},
 		SocketNamespaces: []*panel.SocketNamespace{
 			{
 				Name:   socketNamespace,
 				Events: []string{eventConnectSSH, eventTerminalInput, eventResize, eventDisconnect},
-				Access: &panel.AccessPolicy{RequireAuth: true},
+				Access: authenticated,
 			},
 		},
 	}, nil
-}
-
-// HandleHTTP is unused because this plugin serves only static files.
-func (s *sshServer) HandleHTTP(context.Context, *panel.HTTPRequest) (*panel.HTTPResponse, error) {
-	return &panel.HTTPResponse{Status: http.StatusNotFound}, nil
 }
 
 // HandleSocketEvent routes browser terminal events to the SSH session layer.
