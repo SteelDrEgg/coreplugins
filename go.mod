@@ -6,14 +6,9 @@ require (
 	filippo.io/age v1.3.1
 	github.com/SteelDrEgg/arupa-sdk/golang v0.3.0
 	github.com/gin-gonic/gin v1.10.0
-	github.com/hashicorp/go-plugin v1.8.0
 	github.com/kevinburke/ssh_config v1.4.0
-	github.com/knqyf263/go-plugin v0.9.0
 	github.com/spf13/cast v1.9.2
-	github.com/tetratelabs/wazero v1.9.0
 	golang.org/x/crypto v0.53.0
-	google.golang.org/grpc v1.81.1
-	google.golang.org/protobuf v1.36.11
 )
 
 
@@ -32,6 +27,7 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
+	github.com/hashicorp/go-plugin v1.8.0 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
