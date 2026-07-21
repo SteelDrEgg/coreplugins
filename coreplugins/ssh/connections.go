@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
 )
 
 const (
@@ -65,6 +67,9 @@ func (s *sshServer) handleConnectionsHTTP(w http.ResponseWriter, req *http.Reque
 
 func (s *sshServer) loadSavedConnections(raw string) error {
 	if strings.TrimSpace(raw) == "" {
+		s.settingsMu.Lock()
+		s.settings = make(map[string]savedConnection)
+		s.settingsMu.Unlock()
 		return nil
 	}
 
@@ -178,7 +183,10 @@ func (s *sshServer) saveConnectionResponse(w http.ResponseWriter, req *http.Requ
 }
 
 func (s *sshServer) patchConnectionParams(ctx context.Context, encoded string) error {
-	err := s.host.patchParams(ctx, map[string]string{savedConnectionsParam: encoded})
+	if s.params == nil {
+		return fmt.Errorf("persist SSH connections: plugin parameters are unavailable")
+	}
+	err := s.params.PatchParams(ctx, arupa.ParamsPatch{Set: map[string]string{savedConnectionsParam: encoded}})
 	if err != nil {
 		return fmt.Errorf("persist SSH connections: %w", err)
 	}

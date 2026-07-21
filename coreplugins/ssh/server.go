@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 
 	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
-	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/grpc"
 	arupagrpc "github.com/SteelDrEgg/arupa-sdk/golang/grpc"
 )
 
@@ -27,15 +27,12 @@ const (
 	eventTerminalOutput  = "terminal_output"
 )
 
-// sshServer implements the Plugin gRPC service for SSH terminals.
-//
-// It owns active SSH sessions keyed by Socket.IO socket id and uses the host
-// callback service to emit terminal output back to the browser.
+// sshServer owns SSH terminal application state keyed by Socket.IO socket id.
+// The SDK owns the gRPC service and host callback protocol.
 type sshServer struct {
-	pluginv1.UnimplementedPluginServer
-
 	sdk           *arupagrpc.Plugin
-	host          hostBridge
+	params        arupa.ParamsClient
+	events        *arupa.SocketListener
 	mu            sync.RWMutex
 	sshConfigPath string
 	sessions      map[string]*sshSession
@@ -46,7 +43,7 @@ type sshServer struct {
 	settingsWriteMu sync.Mutex
 }
 
-// newSSHServer constructs a plugin server with an empty session table.
+// newSSHServer constructs an SSH application and its SDK gRPC adapter.
 func newSSHServer() *sshServer {
 	s := &sshServer{
 		sessions: make(map[string]*sshSession),
@@ -91,43 +88,37 @@ func newSSHServer() *sshServer {
 				},
 			},
 		},
-		Handler: http.HandlerFunc(s.handleConnectionsHTTP),
-		Events:  events,
+		Handler:    http.HandlerFunc(s.handleConnectionsHTTP),
+		Events:     events,
+		OnRegister: s.configure,
 	}
+	s.params = s.sdk
+	s.events = events
 	return s
 }
 
-// Register declares the plugin's static terminal page and Socket.IO namespace.
-func (s *sshServer) Register(ctx context.Context, req *pluginv1.RegisterRequest) (*pluginv1.RegisterReply, error) {
-	reply, err := s.sdk.Register(ctx, req)
-	if err != nil {
-		return nil, err
+// configure initializes SSH application state after the SDK has connected the
+// host callback and captured the initial Params snapshot.
+func (s *sshServer) configure(ctx context.Context) error {
+	if s.sdk == nil {
+		return fmt.Errorf("ssh: SDK plugin is unavailable during registration")
 	}
-	if err := s.host.configure(ctx, req); err != nil {
-		return nil, err
+	if err := s.configureParams(s.sdk.InitialParams()); err != nil {
+		return err
 	}
-
-	s.sshConfigPath = req.GetParams()["ssh_config_path"]
-	if err := s.loadSavedConnections(req.GetParams()[savedConnectionsParam]); err != nil {
-		return nil, err
-	}
-	s.log(ctx, "info", "ssh plugin registered")
-	return reply, nil
+	// Registration must not fail merely because the host did not expose the
+	// optional logging callback.
+	_ = s.sdk.Info(ctx, "ssh plugin registered")
+	return nil
 }
 
-// HandleHTTP delegates protocol conversion to the SDK and application routing
-// to a standard net/http handler.
-func (s *sshServer) HandleHTTP(ctx context.Context, req *pluginv1.HTTPRequest) (*pluginv1.HTTPResponse, error) {
-	return s.sdk.HandleHTTP(ctx, req)
-}
-
-// HandleSocketEvent delegates protocol conversion and event dispatch to the
-// SDK SocketListener.
-func (s *sshServer) HandleSocketEvent(ctx context.Context, event *pluginv1.SocketEvent) (*pluginv1.SocketEventReply, error) {
-	return s.sdk.HandleSocketEvent(ctx, event)
-}
-
-// HandlePluginMessage is unused by the SSH plugin.
-func (s *sshServer) HandlePluginMessage(context.Context, *pluginv1.PluginMessage) (*pluginv1.PluginMessageReply, error) {
-	return &pluginv1.PluginMessageReply{}, nil
+// configureParams applies the SSH-specific subset of the initial plugin
+// parameters. Keeping it separate from the SDK hook makes the application
+// configuration independently testable.
+func (s *sshServer) configureParams(params map[string]string) error {
+	s.sshConfigPath = params["ssh_config_path"]
+	if err := s.loadSavedConnections(params[savedConnectionsParam]); err != nil {
+		return err
+	}
+	return nil
 }

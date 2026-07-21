@@ -2,21 +2,19 @@
 
 This core plugin provides the `/pages/terminal.html` SSH terminal page and the
 `/ssh` Socket.IO namespace. It is implemented as a gRPC go-plugin process and
-uses the Arupa Go SDK for registration, HTTP adaptation, Socket.IO event
-dispatch, and background emits. `internal/sshc` handles SSH config parsing,
-authentication, connection setup, and PTY creation.
+uses the Arupa Go SDK for the gRPC runtime, registration, host callbacks, HTTP
+adaptation, Socket.IO event dispatch, and background emits. `internal/sshc`
+handles SSH config parsing, authentication, connection setup, and PTY creation.
 
 ## Layout
 
-- `main.go` starts the go-plugin gRPC server.
-- `plugin.go` adapts the server to HashiCorp go-plugin.
-- `server.go` composes the SDK plugin, registration, HTTP handler, and EventBus.
+- `main.go` hands the SDK plugin to the SDK-managed gRPC runtime.
+- `server.go` composes the SDK plugin, its registration hook, HTTP handler, and
+  EventBus.
 - `connect.go` resolves host config and opens SSH sessions.
 - `connections.go` is a standard `net/http` handler that validates and persists
   non-sensitive connection profiles.
 - `session.go` owns PTY input, resize, output, and cleanup.
-- `host.go` is a narrow host bridge for `PatchParams` and logging, which are not
-  yet exposed by the SDK.
 - `payload.go` contains small JSON/path helpers.
 
 ## Frontend Contract
