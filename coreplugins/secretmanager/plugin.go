@@ -5,13 +5,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 
 	"filippo.io/age"
 	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
-	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
 	arupawasm "github.com/SteelDrEgg/arupa-sdk/golang/wasm"
 )
 
@@ -28,6 +26,9 @@ const (
 )
 
 type secretManagerPlugin struct {
+	plugin   *arupawasm.Plugin
+	initMu   sync.Mutex
+	ready    bool
 	mu       sync.RWMutex
 	writeMu  sync.Mutex
 	params   map[string]string
@@ -43,51 +44,46 @@ type secretMeta struct {
 	Encryption     string   `json:"encryption,omitempty"`
 }
 
-func (p *secretManagerPlugin) Register(ctx context.Context, req *pluginv1.RegisterRequest) (*pluginv1.RegisterReply, error) {
-	params := cloneParams(req.GetParams())
+// initialize loads the registration snapshot and creates the encryption
+// identity on the first operation that needs it. The regular wasm.Plugin owns
+// protocol registration, so this package never needs generated ABI types.
+func (p *secretManagerPlugin) initialize(ctx context.Context) error {
+	p.initMu.Lock()
+	defer p.initMu.Unlock()
+
+	if p.ready {
+		return nil
+	}
+	if p.plugin == nil {
+		return fmt.Errorf("secret-manager plugin is not configured")
+	}
+
+	params := p.plugin.InitialParams()
 	identityText := strings.TrimSpace(params[paramIdentity])
 	if identityText == "" {
 		identity, err := age.GenerateX25519Identity()
 		if err != nil {
-			return nil, fmt.Errorf("generate secrets manager identity: %w", err)
+			return fmt.Errorf("generate secrets manager identity: %w", err)
 		}
 		identityText = identity.String()
 		params[paramIdentity] = identityText
 
-		if err := p.patchParams(ctx, map[string]string{paramIdentity: identityText}, nil); err != nil {
-			return nil, fmt.Errorf("persist secrets manager identity: %w", err)
+		if err := p.plugin.PatchParams(ctx, arupa.ParamsPatch{Set: map[string]string{paramIdentity: identityText}}); err != nil {
+			return fmt.Errorf("persist secrets manager identity: %w", err)
 		}
 	}
 
 	identity, err := age.ParseX25519Identity(identityText)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", paramIdentity, err)
+		return fmt.Errorf("parse %s: %w", paramIdentity, err)
 	}
 
 	p.mu.Lock()
 	p.params = params
 	p.identity = identity
 	p.mu.Unlock()
-
-	return arupawasm.RegistrationReply(arupa.Registration{
-		Name:    "secret-manager",
-		Version: pluginVersion,
-		HTTPRoutes: []arupa.HTTPRoute{
-			{Method: http.MethodGet, Pattern: "/keys", Access: authenticatedAccess},
-			{Method: http.MethodPost, Pattern: "/keys/add", Access: authenticatedAccess},
-			{Method: http.MethodPost, Pattern: "/keys/update", Access: authenticatedAccess},
-			{Method: http.MethodPost, Pattern: "/keys/reveal", Access: authenticatedAccess},
-			{Method: http.MethodPost, Pattern: "/keys/delete", Access: authenticatedAccess},
-		},
-		StaticMounts: []arupa.StaticMount{
-			{Prefix: "/keys/pages/index.html", Directory: "$PLUGIN_ROOT/pages/index.html", Access: authenticatedAccess},
-			{Prefix: "/keys/icon/", Directory: "$PLUGIN_ROOT/icon", Access: authenticatedAccess},
-		},
-	})
+	p.ready = true
+	return nil
 }
 
 var authenticatedAccess = arupa.AccessPolicy{RequireAuth: true}
-
-func (p *secretManagerPlugin) HandleSocketEvent(context.Context, *pluginv1.SocketEvent) (*pluginv1.SocketEventReply, error) {
-	return &pluginv1.SocketEventReply{}, nil
-}

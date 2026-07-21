@@ -2,13 +2,40 @@
 
 package main
 
-import pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
+import (
+	"net/http"
+
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
+	"github.com/SteelDrEgg/arupa-sdk/golang/wasm"
+)
 
 func main() {}
 
 func init() {
-	// The SDK owns HTTP and plugin-message protocol adaptation. Registration
-	// remains here because this plugin initializes and persists its identity
-	// from the host-provided parameter set.
-	pluginv1.RegisterPlugin(newSecretManagerPlugin())
+	manager := newSecretManagerPlugin()
+	plugin := &wasm.Plugin{
+		Registration: secretManagerRegistration(),
+		Handler:      http.HandlerFunc(manager.handleHTTP),
+		Messages:     manager.messages,
+	}
+	manager.plugin = plugin
+	wasm.Register(plugin)
+}
+
+func secretManagerRegistration() arupa.Registration {
+	return arupa.Registration{
+		Name:    "secret-manager",
+		Version: pluginVersion,
+		HTTPRoutes: []arupa.HTTPRoute{
+			{Method: http.MethodGet, Pattern: "/keys", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/add", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/update", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/reveal", Access: authenticatedAccess},
+			{Method: http.MethodPost, Pattern: "/keys/delete", Access: authenticatedAccess},
+		},
+		StaticMounts: []arupa.StaticMount{
+			{Prefix: "/keys/pages/index.html", Directory: "$PLUGIN_ROOT/pages/index.html", Access: authenticatedAccess},
+			{Prefix: "/keys/icon/", Directory: "$PLUGIN_ROOT/icon", Access: authenticatedAccess},
+		},
+	}
 }

@@ -10,8 +10,6 @@ import (
 	"time"
 
 	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
-	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
-	arupawasm "github.com/SteelDrEgg/arupa-sdk/golang/wasm"
 )
 
 const (
@@ -40,7 +38,7 @@ func newSecretManagerPlugin() *secretManagerPlugin {
 		topicSecretUpdate: p.handleSecretUpdateMessage,
 		topicSecretDelete: p.handleSecretDeleteMessage,
 	} {
-		if err := p.messages.On(topic, handler); err != nil {
+		if err := p.messages.On(topic, p.withInitialization(handler)); err != nil {
 			panic(fmt.Sprintf("register secret-manager message handler: %v", err))
 		}
 	}
@@ -52,14 +50,13 @@ func newSecretManagerPlugin() *secretManagerPlugin {
 	return p
 }
 
-// HandlePluginMessage delegates protocol conversion and topic dispatch to the
-// SDK. Errors remain part of PluginMessageReply for host compatibility.
-func (p *secretManagerPlugin) HandlePluginMessage(ctx context.Context, req *pluginv1.PluginMessage) (*pluginv1.PluginMessageReply, error) {
-	reply, err := arupawasm.HandlePluginMessage(ctx, req, p.messages)
-	if err != nil {
-		return &pluginv1.PluginMessageReply{Error: err.Error()}, nil
+func (p *secretManagerPlugin) withInitialization(handler arupa.MessageHandler) arupa.MessageHandler {
+	return func(ctx context.Context, message arupa.IncomingMessage) (string, error) {
+		if err := p.initialize(ctx); err != nil {
+			return "", fmt.Errorf("initialize secrets manager: %w", err)
+		}
+		return handler(ctx, message)
 	}
-	return reply, nil
 }
 
 func (p *secretManagerPlugin) handleSecretGetMessage(_ context.Context, message arupa.IncomingMessage) (string, error) {

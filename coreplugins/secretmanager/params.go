@@ -9,16 +9,15 @@ import (
 	"sort"
 	"strings"
 
-	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
+	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
 )
 
 func (p *secretManagerPlugin) patchParams(ctx context.Context, set map[string]string, deleteKeys []string) error {
-	reply, err := pluginv1.NewHost().PatchParams(ctx, &pluginv1.ParamsPatchRequest{Set: set, Delete: deleteKeys})
-	if err != nil {
-		return err
+	if p.plugin == nil {
+		return fmt.Errorf("secret-manager plugin is not configured")
 	}
-	if reply.GetError() != "" {
-		return fmt.Errorf("host rejected Params update: %s", reply.GetError())
+	if err := p.plugin.PatchParams(ctx, arupa.ParamsPatch{Set: set, Delete: deleteKeys}); err != nil {
+		return err
 	}
 
 	p.mu.Lock()

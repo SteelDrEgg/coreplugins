@@ -10,9 +10,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	pluginv1 "github.com/SteelDrEgg/arupa-sdk/golang/gen/wasm/proto"
-	arupawasm "github.com/SteelDrEgg/arupa-sdk/golang/wasm"
 )
 
 type secretWriteRequest struct {
@@ -32,13 +29,6 @@ type secretRevealRequest struct {
 	Passphrase string `json:"passphrase"`
 }
 
-// HandleHTTP delegates request and response protocol conversion to the SDK.
-// The host has already performed route authorization; this handler owns only
-// the secret-manager application routes.
-func (p *secretManagerPlugin) HandleHTTP(ctx context.Context, req *pluginv1.HTTPRequest) (*pluginv1.HTTPResponse, error) {
-	return arupawasm.ServeHTTP(ctx, req, http.HandlerFunc(p.handleHTTP))
-}
-
 func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Request) {
 	path := strings.TrimRight(req.URL.Path, "/")
 	if path == "" {
@@ -47,21 +37,42 @@ func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Reques
 
 	switch {
 	case req.Method == http.MethodGet && path == "/keys":
-		p.listResponse(w)
+		if p.initializeHTTP(w, req) {
+			p.listResponse(w)
+		}
 	case req.Method == http.MethodPost && path == "/keys/add":
-		p.addResponse(w, req.Context(), req.Body)
+		if p.initializeHTTP(w, req) {
+			p.addResponse(w, req.Context(), req.Body)
+		}
 	case req.Method == http.MethodPost && path == "/keys/update":
-		p.updateResponse(w, req.Context(), req.Body)
+		if p.initializeHTTP(w, req) {
+			p.updateResponse(w, req.Context(), req.Body)
+		}
 	case req.Method == http.MethodPost && path == "/keys/reveal":
-		p.revealResponse(w, req.Body)
+		if p.initializeHTTP(w, req) {
+			p.revealResponse(w, req.Body)
+		}
 	case req.Method == http.MethodPost && path == "/keys/delete":
-		p.deleteResponse(w, req.Context(), req.Body)
+		if p.initializeHTTP(w, req) {
+			p.deleteResponse(w, req.Context(), req.Body)
+		}
 	default:
 		writeJSONResponse(w, http.StatusNotFound, map[string]any{
 			"success": false,
 			"message": "Not found",
 		})
 	}
+}
+
+func (p *secretManagerPlugin) initializeHTTP(w http.ResponseWriter, req *http.Request) bool {
+	if err := p.initialize(req.Context()); err != nil {
+		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{
+			"success": false,
+			"message": err.Error(),
+		})
+		return false
+	}
+	return true
 }
 
 func (p *secretManagerPlugin) listResponse(w http.ResponseWriter) {
