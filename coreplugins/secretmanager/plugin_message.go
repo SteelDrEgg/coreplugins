@@ -38,7 +38,7 @@ func newSecretManagerPlugin() *secretManagerPlugin {
 		topicSecretUpdate: p.handleSecretUpdateMessage,
 		topicSecretDelete: p.handleSecretDeleteMessage,
 	} {
-		if err := p.messages.On(topic, p.withInitialization(handler)); err != nil {
+		if err := p.messages.On(topic, handler); err != nil {
 			panic(fmt.Sprintf("register secret-manager message handler: %v", err))
 		}
 	}
@@ -48,15 +48,6 @@ func newSecretManagerPlugin() *secretManagerPlugin {
 		panic(fmt.Sprintf("register secret-manager fallback message handler: %v", err))
 	}
 	return p
-}
-
-func (p *secretManagerPlugin) withInitialization(handler arupa.MessageHandler) arupa.MessageHandler {
-	return func(ctx context.Context, message arupa.IncomingMessage) (string, error) {
-		if err := p.initialize(ctx); err != nil {
-			return "", fmt.Errorf("initialize secrets manager: %w", err)
-		}
-		return handler(ctx, message)
-	}
 }
 
 func (p *secretManagerPlugin) handleSecretGetMessage(_ context.Context, message arupa.IncomingMessage) (string, error) {

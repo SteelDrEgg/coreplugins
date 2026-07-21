@@ -37,42 +37,21 @@ func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Reques
 
 	switch {
 	case req.Method == http.MethodGet && path == "/keys":
-		if p.initializeHTTP(w, req) {
-			p.listResponse(w)
-		}
+		p.listResponse(w)
 	case req.Method == http.MethodPost && path == "/keys/add":
-		if p.initializeHTTP(w, req) {
-			p.addResponse(w, req.Context(), req.Body)
-		}
+		p.addResponse(w, req.Context(), req.Body)
 	case req.Method == http.MethodPost && path == "/keys/update":
-		if p.initializeHTTP(w, req) {
-			p.updateResponse(w, req.Context(), req.Body)
-		}
+		p.updateResponse(w, req.Context(), req.Body)
 	case req.Method == http.MethodPost && path == "/keys/reveal":
-		if p.initializeHTTP(w, req) {
-			p.revealResponse(w, req.Body)
-		}
+		p.revealResponse(w, req.Body)
 	case req.Method == http.MethodPost && path == "/keys/delete":
-		if p.initializeHTTP(w, req) {
-			p.deleteResponse(w, req.Context(), req.Body)
-		}
+		p.deleteResponse(w, req.Context(), req.Body)
 	default:
 		writeJSONResponse(w, http.StatusNotFound, map[string]any{
 			"success": false,
 			"message": "Not found",
 		})
 	}
-}
-
-func (p *secretManagerPlugin) initializeHTTP(w http.ResponseWriter, req *http.Request) bool {
-	if err := p.initialize(req.Context()); err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{
-			"success": false,
-			"message": err.Error(),
-		})
-		return false
-	}
-	return true
 }
 
 func (p *secretManagerPlugin) listResponse(w http.ResponseWriter) {

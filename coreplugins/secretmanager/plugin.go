@@ -27,8 +27,6 @@ const (
 
 type secretManagerPlugin struct {
 	plugin   *arupawasm.Plugin
-	initMu   sync.Mutex
-	ready    bool
 	mu       sync.RWMutex
 	writeMu  sync.Mutex
 	params   map[string]string
@@ -44,16 +42,10 @@ type secretMeta struct {
 	Encryption     string   `json:"encryption,omitempty"`
 }
 
-// initialize loads the registration snapshot and creates the encryption
-// identity on the first operation that needs it. The regular wasm.Plugin owns
+// initialize loads the registration snapshot and persists an encryption
+// identity before the plugin accepts requests. The regular wasm.Plugin owns
 // protocol registration, so this package never needs generated ABI types.
 func (p *secretManagerPlugin) initialize(ctx context.Context) error {
-	p.initMu.Lock()
-	defer p.initMu.Unlock()
-
-	if p.ready {
-		return nil
-	}
 	if p.plugin == nil {
 		return fmt.Errorf("secret-manager plugin is not configured")
 	}
@@ -82,7 +74,6 @@ func (p *secretManagerPlugin) initialize(ctx context.Context) error {
 	p.params = params
 	p.identity = identity
 	p.mu.Unlock()
-	p.ready = true
 	return nil
 }
 

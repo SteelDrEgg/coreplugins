@@ -17,6 +17,7 @@ func init() {
 		Registration: secretManagerRegistration(),
 		Handler:      http.HandlerFunc(manager.handleHTTP),
 		Messages:     manager.messages,
+		OnRegister:   manager.initialize,
 	}
 	manager.plugin = plugin
 	wasm.Register(plugin)
