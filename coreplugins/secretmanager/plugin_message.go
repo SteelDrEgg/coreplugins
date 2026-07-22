@@ -30,7 +30,7 @@ type pluginMessageError string
 func (e pluginMessageError) Error() string { return string(e) }
 
 func newSecretManagerPlugin() *secretManagerPlugin {
-	p := &secretManagerPlugin{messages: arupa.NewMessageListener()}
+	p := &secretManagerPlugin{messages: arupa.NewMessageListener(), store: newParamsStore()}
 	for topic, handler := range map[string]arupa.MessageHandler{
 		topicSecretGet:    p.handleSecretGetMessage,
 		topicSecretList:   p.handleSecretListMessage,
@@ -61,7 +61,7 @@ func (p *secretManagerPlugin) handleSecretGetMessage(_ context.Context, message 
 	if !p.allowed(payload.Name, message.Source) {
 		return "", pluginMessageError("plugin is not allowed to access this secret")
 	}
-	if _, err := p.secretEncryption(payload.Name); err != nil {
+	if _, err := p.store.encryption(payload.Name); err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 	value, err := p.decryptSecret(payload.Name, payload.Passphrase)
@@ -77,11 +77,7 @@ func (p *secretManagerPlugin) handleSecretListMessage(_ context.Context, message
 		return "", pluginMessageError(err.Error())
 	}
 
-	p.mu.RLock()
-	params := cloneParams(p.params)
-	p.mu.RUnlock()
-
-	keys, err := listSecretMeta(params)
+	keys, err := p.store.listSecrets()
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
@@ -118,7 +114,7 @@ func (p *secretManagerPlugin) writeSecretMessage(ctx context.Context, message ar
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 
-	if exists := p.secretExists(payload.Name); exists != update {
+	if exists := p.store.hasSecret(payload.Name); exists != update {
 		if update {
 			return "", pluginMessageError("secret not found")
 		}
@@ -144,11 +140,11 @@ func (p *secretManagerPlugin) writeSecretMessage(ctx context.Context, message ar
 			return "", pluginMessageError("you must edit both value and passphrase")
 		}
 		var ok bool
-		ciphertext, ok = p.secretCiphertext(payload.Name)
+		ciphertext, ok = p.store.ciphertext(payload.Name)
 		if !ok {
 			return "", pluginMessageError("secret not found")
 		}
-		encryption, err = p.secretEncryption(payload.Name)
+		encryption, err = p.store.encryption(payload.Name)
 		if err != nil {
 			return "", pluginMessageError(err.Error())
 		}
@@ -166,19 +162,7 @@ func (p *secretManagerPlugin) writeSecretMessage(ctx context.Context, message ar
 		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
 		Encryption:     encryption,
 	}
-	metaJSON, err := json.Marshal(meta)
-	if err != nil {
-		return "", pluginMessageError("encode metadata")
-	}
-	policyJSON, err := json.Marshal(allowedPlugins)
-	if err != nil {
-		return "", pluginMessageError("encode access policy")
-	}
-	if err := p.patchParams(ctx, map[string]string{
-		paramSecretPrefix + payload.Name: ciphertext,
-		paramPolicyPrefix + payload.Name: string(policyJSON),
-		paramMetaPrefix + payload.Name:   string(metaJSON),
-	}, nil); err != nil {
+	if err := p.store.putSecret(ctx, ciphertext, meta); err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 	return pluginMessageJSON(map[string]any{"success": true, "name": payload.Name})
@@ -200,17 +184,13 @@ func (p *secretManagerPlugin) handleSecretDeleteMessage(ctx context.Context, mes
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 
-	if !p.secretExists(payload.Name) {
+	if !p.store.hasSecret(payload.Name) {
 		return "", pluginMessageError("secret not found")
 	}
 	if !p.allowed(payload.Name, source) {
 		return "", pluginMessageError("plugin is not allowed to access this secret")
 	}
-	if err := p.patchParams(ctx, nil, []string{
-		paramSecretPrefix + payload.Name,
-		paramPolicyPrefix + payload.Name,
-		paramMetaPrefix + payload.Name,
-	}); err != nil {
+	if err := p.store.deleteSecret(ctx, payload.Name); err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 	return pluginMessageJSON(map[string]any{"success": true, "name": payload.Name})

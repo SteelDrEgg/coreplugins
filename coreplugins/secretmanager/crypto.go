@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"filippo.io/age"
 )
@@ -29,9 +28,9 @@ func (p *secretManagerPlugin) encryptSecret(value, passphrase string) (string, s
 		}
 		encryption = secretEncryptionScrypt
 	} else {
-		p.mu.RLock()
+		p.identityMu.RLock()
 		identity := p.identity
-		p.mu.RUnlock()
+		p.identityMu.RUnlock()
 		if identity == nil {
 			return "", "", fmt.Errorf("secrets manager is not initialized")
 		}
@@ -53,11 +52,10 @@ func (p *secretManagerPlugin) encryptSecret(value, passphrase string) (string, s
 }
 
 func (p *secretManagerPlugin) decryptSecret(name, passphrase string) (string, error) {
-	p.mu.RLock()
-	params := cloneParams(p.params)
+	encoded, ok := p.store.ciphertext(name)
+	p.identityMu.RLock()
 	identity := p.identity
-	p.mu.RUnlock()
-	encoded, ok := params[paramSecretPrefix+name]
+	p.identityMu.RUnlock()
 	if !ok || encoded == "" {
 		return "", fmt.Errorf("secret %q was not found", name)
 	}
@@ -65,11 +63,10 @@ func (p *secretManagerPlugin) decryptSecret(name, passphrase string) (string, er
 	if err != nil {
 		return "", fmt.Errorf("secret %q contains invalid ciphertext", name)
 	}
-	encryption, err := secretEncryptionFromParams(params, name)
+	encryption, err := p.store.encryption(name)
 	if err != nil {
 		return "", err
 	}
-
 	var identities []age.Identity
 	switch encryption {
 	case secretEncryptionIdentity:
@@ -108,21 +105,5 @@ func (p *secretManagerPlugin) decryptSecret(name, passphrase string) (string, er
 }
 
 func (p *secretManagerPlugin) allowed(name, plugin string) bool {
-	plugin = strings.TrimSpace(plugin)
-	if plugin == "" {
-		return false
-	}
-	p.mu.RLock()
-	raw := p.params[paramPolicyPrefix+name]
-	p.mu.RUnlock()
-	plugins, err := decodePlugins(raw)
-	if err != nil {
-		return false
-	}
-	for _, candidate := range plugins {
-		if candidate == plugin {
-			return true
-		}
-	}
-	return false
+	return p.store.allows(name, plugin)
 }

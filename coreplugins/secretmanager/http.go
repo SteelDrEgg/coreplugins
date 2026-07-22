@@ -55,11 +55,7 @@ func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Reques
 }
 
 func (p *secretManagerPlugin) listResponse(w http.ResponseWriter) {
-	p.mu.RLock()
-	params := cloneParams(p.params)
-	p.mu.RUnlock()
-
-	keys, err := listSecretMeta(params)
+	keys, err := p.store.listSecrets()
 	if err != nil {
 		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{
 			"success": false,
@@ -95,7 +91,7 @@ func (p *secretManagerPlugin) writeResponse(w http.ResponseWriter, ctx context.C
 		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
 		return
 	}
-	if exists := p.secretExists(payload.Name); exists != update {
+	if exists := p.store.hasSecret(payload.Name); exists != update {
 		if update {
 			writeJSONResponse(w, http.StatusNotFound, map[string]any{"success": false, "message": "Secret not found"})
 			return
@@ -117,12 +113,12 @@ func (p *secretManagerPlugin) writeResponse(w http.ResponseWriter, ctx context.C
 			return
 		}
 		var ok bool
-		ciphertext, ok = p.secretCiphertext(payload.Name)
+		ciphertext, ok = p.store.ciphertext(payload.Name)
 		if !ok {
 			writeJSONResponse(w, http.StatusNotFound, map[string]any{"success": false, "message": "Secret not found"})
 			return
 		}
-		encryption, err = p.secretEncryption(payload.Name)
+		encryption, err = p.store.encryption(payload.Name)
 		if err != nil {
 			writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
 			return
@@ -142,22 +138,7 @@ func (p *secretManagerPlugin) writeResponse(w http.ResponseWriter, ctx context.C
 		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
 		Encryption:     encryption,
 	}
-	metaJSON, err := json.Marshal(meta)
-	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": "Encode metadata"})
-		return
-	}
-	policyJSON, err := json.Marshal(allowedPlugins)
-	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": "Encode access policy"})
-		return
-	}
-
-	if err := p.patchParams(ctx, map[string]string{
-		paramSecretPrefix + payload.Name: ciphertext,
-		paramPolicyPrefix + payload.Name: string(policyJSON),
-		paramMetaPrefix + payload.Name:   string(metaJSON),
-	}, nil); err != nil {
+	if err := p.store.putSecret(ctx, ciphertext, meta); err != nil {
 		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
 		return
 	}
@@ -210,11 +191,7 @@ func (p *secretManagerPlugin) deleteResponse(w http.ResponseWriter, ctx context.
 		return
 	}
 
-	if err := p.patchParams(ctx, nil, []string{
-		paramSecretPrefix + payload.Name,
-		paramPolicyPrefix + payload.Name,
-		paramMetaPrefix + payload.Name,
-	}); err != nil {
+	if err := p.store.deleteSecret(ctx, payload.Name); err != nil {
 		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
 		return
 	}

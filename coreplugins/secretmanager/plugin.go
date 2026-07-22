@@ -14,11 +14,6 @@ import (
 )
 
 const (
-	paramIdentity     = "secretmgr.identity"
-	paramSecretPrefix = "secretmgr.secret."
-	paramPolicyPrefix = "secretmgr.policy."
-	paramMetaPrefix   = "secretmgr.meta."
-
 	maxSecretSize = 1 << 20
 
 	secretEncryptionIdentity = "identity"
@@ -26,12 +21,12 @@ const (
 )
 
 type secretManagerPlugin struct {
-	plugin   *arupawasm.Plugin
-	mu       sync.RWMutex
-	writeMu  sync.Mutex
-	params   map[string]string
-	identity *age.X25519Identity
-	messages *arupa.MessageListener
+	plugin     *arupawasm.Plugin
+	identityMu sync.RWMutex
+	writeMu    sync.Mutex
+	identity   *age.X25519Identity
+	store      *paramsStore
+	messages   *arupa.MessageListener
 }
 
 type secretMeta struct {
@@ -50,30 +45,28 @@ func (p *secretManagerPlugin) initialize(ctx context.Context) error {
 		return fmt.Errorf("secret-manager plugin is not configured")
 	}
 
-	params := p.plugin.InitialParams()
-	identityText := strings.TrimSpace(params[paramIdentity])
+	p.store.load(p.plugin, p.plugin.InitialParams())
+	identityText := strings.TrimSpace(p.store.identity())
 	if identityText == "" {
 		identity, err := age.GenerateX25519Identity()
 		if err != nil {
 			return fmt.Errorf("generate secrets manager identity: %w", err)
 		}
 		identityText = identity.String()
-		params[paramIdentity] = identityText
 
-		if err := p.plugin.PatchParams(ctx, arupa.ParamsPatch{Set: map[string]string{paramIdentity: identityText}}); err != nil {
+		if err := p.store.setIdentity(ctx, identityText); err != nil {
 			return fmt.Errorf("persist secrets manager identity: %w", err)
 		}
 	}
 
 	identity, err := age.ParseX25519Identity(identityText)
 	if err != nil {
-		return fmt.Errorf("parse %s: %w", paramIdentity, err)
+		return fmt.Errorf("parse secret manager identity: %w", err)
 	}
 
-	p.mu.Lock()
-	p.params = params
+	p.identityMu.Lock()
 	p.identity = identity
-	p.mu.Unlock()
+	p.identityMu.Unlock()
 	return nil
 }
 
