@@ -14,13 +14,26 @@ import (
 )
 
 const (
-	savedConnectionsParam = "ssh.connections"
-	savedConnectionsPath  = "/ssh/api/connections"
+	savedConnectionsPath = "/ssh/api/connections"
+
+	sshConfigPathParam    = "ssh_config_path"
+	connectionParamPrefix = "connection."
+	connectionHostField   = "host"
+	connectionPortField   = "port"
+	connectionUserField   = "username"
+	connectionAuthField   = "auth"
 
 	authTypePassword     = "password"
 	authTypeKey          = "key"
 	legacyAuthTypeSecret = "secret"
 )
+
+var connectionParamFields = []string{
+	connectionHostField,
+	connectionPortField,
+	connectionUserField,
+	connectionAuthField,
+}
 
 // savedConnection is the non-sensitive portion of an SSH connection profile.
 // Passwords, secret values, and passphrases deliberately have no field here.
@@ -37,6 +50,151 @@ type savedConnection struct {
 type savedConnectionsResponse struct {
 	Success     bool              `json:"success"`
 	Connections []savedConnection `json:"connections"`
+}
+
+// sshSettings is the application configuration read from the Params snapshot.
+type sshSettings struct {
+	SSHConfigPath string
+	Connections   map[string]savedConnection
+}
+
+// sshSettingsStore is the sole owner of the SSH plugin Params schema. A
+// profile named "host1" is stored as readable entries such as
+// connection.host1.host and connection.host1.auth.
+type sshSettingsStore struct {
+	params arupa.ParamsClient
+}
+
+// Load converts the initial plugin Params snapshot to validated SSH settings.
+// Unrelated Params are deliberately ignored.
+func (store sshSettingsStore) Load(params map[string]string) (sshSettings, error) {
+	fields := make(map[string]map[string]string)
+	for key, value := range params {
+		name, field, isConnection, err := parseConnectionParamKey(key)
+		if err != nil {
+			return sshSettings{}, err
+		}
+		if !isConnection {
+			continue
+		}
+		if fields[name] == nil {
+			fields[name] = make(map[string]string)
+		}
+		fields[name][field] = value
+	}
+
+	connections := make(map[string]savedConnection, len(fields))
+	for name, values := range fields {
+		connection, err := connectionFromParams(name, values)
+		if err != nil {
+			return sshSettings{}, err
+		}
+		connections[connection.Name] = connection
+	}
+	return sshSettings{
+		SSHConfigPath: params[sshConfigPathParam],
+		Connections:   connections,
+	}, nil
+}
+
+// Save persists one connection as four human-readable Params entries.
+func (store sshSettingsStore) Save(ctx context.Context, connection savedConnection) error {
+	if store.params == nil {
+		return fmt.Errorf("persist SSH connection: plugin parameters are unavailable")
+	}
+	values, err := connectionParamValues(connection)
+	if err != nil {
+		return err
+	}
+	if err := store.params.PatchParams(ctx, arupa.ParamsPatch{Set: values}); err != nil {
+		return fmt.Errorf("persist SSH connection: %w", err)
+	}
+	return nil
+}
+
+func parseConnectionParamKey(key string) (name, field string, isConnection bool, err error) {
+	if !strings.HasPrefix(key, connectionParamPrefix) {
+		return "", "", false, nil
+	}
+	for _, candidate := range connectionParamFields {
+		suffix := "." + candidate
+		if strings.HasSuffix(key, suffix) {
+			name = strings.TrimSuffix(strings.TrimPrefix(key, connectionParamPrefix), suffix)
+			if strings.TrimSpace(name) == "" {
+				return "", "", true, fmt.Errorf("parse %q: connection name is required", key)
+			}
+			return name, candidate, true, nil
+		}
+	}
+	return "", "", true, fmt.Errorf("parse %q: unsupported connection field", key)
+}
+
+func connectionFromParams(name string, values map[string]string) (savedConnection, error) {
+	authType, reference, err := parseConnectionAuth(values[connectionAuthField])
+	if err != nil {
+		return savedConnection{}, fmt.Errorf("parse connection %q: %w", name, err)
+	}
+	connection := savedConnection{
+		Name:     name,
+		Host:     values[connectionHostField],
+		Port:     values[connectionPortField],
+		Username: values[connectionUserField],
+		AuthType: authType,
+	}
+	if authType == authTypeKey {
+		connection.PrivateKey = reference
+	} else {
+		connection.SecretName = reference
+	}
+	normalized, err := normalizeSavedConnection(connection)
+	if err != nil {
+		return savedConnection{}, fmt.Errorf("parse connection %q: %w", name, err)
+	}
+	return normalized, nil
+}
+
+func connectionParamValues(connection savedConnection) (map[string]string, error) {
+	normalized, err := normalizeSavedConnection(connection)
+	if err != nil {
+		return nil, err
+	}
+	prefix := connectionParamPrefix + normalized.Name + "."
+	return map[string]string{
+		prefix + connectionHostField: normalized.Host,
+		prefix + connectionPortField: normalized.Port,
+		prefix + connectionUserField: normalized.Username,
+		prefix + connectionAuthField: connectionAuth(normalized),
+	}, nil
+}
+
+// connectionAuth is intentionally readable in a Params file. Its second
+// value is a secret reference for password auth or a private-key path for key
+// auth; it is never a credential value.
+func connectionAuth(connection savedConnection) string {
+	reference := connection.SecretName
+	if connection.AuthType == authTypeKey {
+		reference = connection.PrivateKey
+	}
+	if reference == "" {
+		return "{" + connection.AuthType + "}"
+	}
+	return "{" + connection.AuthType + ", " + reference + "}"
+}
+
+func parseConnectionAuth(value string) (authType, reference string, err error) {
+	value = strings.TrimSpace(value)
+	if len(value) < 3 || value[0] != '{' || value[len(value)-1] != '}' {
+		return "", "", fmt.Errorf("auth must use {type} or {type, reference} syntax")
+	}
+	parts := strings.SplitN(value[1:len(value)-1], ",", 2)
+	authType = strings.TrimSpace(parts[0])
+	if len(parts) == 2 {
+		reference = strings.TrimSpace(parts[1])
+	}
+	if authType == "" {
+		return "", "", fmt.Errorf("auth type is required")
+	}
+	return authType, reference, nil
 }
 
 func (s *sshServer) handleConnectionsHTTP(w http.ResponseWriter, req *http.Request) {
@@ -63,37 +221,6 @@ func (s *sshServer) handleConnectionsHTTP(w http.ResponseWriter, req *http.Reque
 			"message": "Method not allowed",
 		})
 	}
-}
-
-func (s *sshServer) loadSavedConnections(raw string) error {
-	if strings.TrimSpace(raw) == "" {
-		s.settingsMu.Lock()
-		s.settings = make(map[string]savedConnection)
-		s.settingsMu.Unlock()
-		return nil
-	}
-
-	var connections []savedConnection
-	if err := json.Unmarshal([]byte(raw), &connections); err != nil {
-		return fmt.Errorf("parse %s: %w", savedConnectionsParam, err)
-	}
-
-	loaded := make(map[string]savedConnection, len(connections))
-	for _, connection := range connections {
-		normalized, err := normalizeSavedConnection(connection)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", savedConnectionsParam, err)
-		}
-		if _, exists := loaded[normalized.Name]; exists {
-			return fmt.Errorf("parse %s: duplicate connection %q", savedConnectionsParam, normalized.Name)
-		}
-		loaded[normalized.Name] = normalized
-	}
-
-	s.settingsMu.Lock()
-	s.settings = loaded
-	s.settingsMu.Unlock()
-	return nil
 }
 
 func (s *sshServer) savedConnections() []savedConnection {
@@ -141,31 +268,7 @@ func (s *sshServer) saveConnectionResponse(w http.ResponseWriter, req *http.Requ
 	s.settingsWriteMu.Lock()
 	defer s.settingsWriteMu.Unlock()
 
-	next := make(map[string]savedConnection)
-	s.settingsMu.RLock()
-	for name, existing := range s.settings {
-		next[name] = existing
-	}
-	s.settingsMu.RUnlock()
-	next[normalized.Name] = normalized
-
-	connections := make([]savedConnection, 0, len(next))
-	for _, item := range next {
-		connections = append(connections, item)
-	}
-	sort.Slice(connections, func(i, j int) bool {
-		return strings.ToLower(connections[i].Name) < strings.ToLower(connections[j].Name)
-	})
-
-	encoded, err := json.Marshal(connections)
-	if err != nil {
-		writeConnectionJSON(w, http.StatusInternalServerError, map[string]any{
-			"success": false,
-			"message": "Failed to encode SSH connections",
-		})
-		return
-	}
-	if err := s.patchConnectionParams(req.Context(), string(encoded)); err != nil {
+	if err := s.settingsStore.Save(req.Context(), normalized); err != nil {
 		writeConnectionJSON(w, http.StatusInternalServerError, map[string]any{
 			"success": false,
 			"message": err.Error(),
@@ -174,23 +277,12 @@ func (s *sshServer) saveConnectionResponse(w http.ResponseWriter, req *http.Requ
 	}
 
 	s.settingsMu.Lock()
-	s.settings = next
+	s.settings[normalized.Name] = normalized
 	s.settingsMu.Unlock()
 	writeConnectionJSON(w, http.StatusOK, map[string]any{
 		"success":    true,
 		"connection": normalized,
 	})
-}
-
-func (s *sshServer) patchConnectionParams(ctx context.Context, encoded string) error {
-	if s.params == nil {
-		return fmt.Errorf("persist SSH connections: plugin parameters are unavailable")
-	}
-	err := s.params.PatchParams(ctx, arupa.ParamsPatch{Set: map[string]string{savedConnectionsParam: encoded}})
-	if err != nil {
-		return fmt.Errorf("persist SSH connections: %w", err)
-	}
-	return nil
 }
 
 func normalizeSavedConnection(connection savedConnection) (savedConnection, error) {

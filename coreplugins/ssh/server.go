@@ -31,7 +31,7 @@ const (
 // The SDK owns the gRPC service and host callback protocol.
 type sshServer struct {
 	sdk           *arupagrpc.Plugin
-	params        arupa.ParamsClient
+	settingsStore sshSettingsStore
 	events        *arupa.SocketListener
 	mu            sync.RWMutex
 	sshConfigPath string
@@ -92,7 +92,7 @@ func newSSHServer() *sshServer {
 		Events:     events,
 		OnRegister: s.configure,
 	}
-	s.params = s.sdk
+	s.settingsStore = sshSettingsStore{params: s.sdk}
 	s.events = events
 	return s
 }
@@ -116,9 +116,13 @@ func (s *sshServer) configure(ctx context.Context) error {
 // parameters. Keeping it separate from the SDK hook makes the application
 // configuration independently testable.
 func (s *sshServer) configureParams(params map[string]string) error {
-	s.sshConfigPath = params["ssh_config_path"]
-	if err := s.loadSavedConnections(params[savedConnectionsParam]); err != nil {
+	settings, err := s.settingsStore.Load(params)
+	if err != nil {
 		return err
 	}
+	s.sshConfigPath = settings.SSHConfigPath
+	s.settingsMu.Lock()
+	s.settings = settings.Connections
+	s.settingsMu.Unlock()
 	return nil
 }

@@ -44,10 +44,20 @@ GET  /ssh/api/connections
 POST /ssh/api/connections
 ```
 
-Profiles are persisted in the `ssh.connections` plugin Param. They contain only
-the profile name, host, port, username, authentication type, private-key path,
-or Secret Manager password reference. Passwords, revealed secret values, and
-passphrases are never persisted.
+Profiles are persisted as one readable Param group per profile, rather than a
+JSON blob. For a profile named `host1`, the entries are:
+
+```text
+connection.host1.host = "localhost"
+connection.host1.port = "22"
+connection.host1.username = "root"
+connection.host1.auth = "{password, local-password}"
+```
+
+`auth` uses `{password}` or `{password, secret-name}` for password
+authentication, and `{key}` or `{key, /path/to/private-key}` for key
+authentication. The second value is always a Secret Manager reference or a
+key path—never a password, private-key value, or passphrase.
 
 ## Build
 
@@ -72,4 +82,8 @@ For local debugging, start the panel with `go run ./cmd` and open
     RunAsUser = ""
     [Plugins.ssh.Params]
       ssh_config_path = "~/.ssh/config"
+      "connection.host1.host" = "localhost"
+      "connection.host1.port" = "22"
+      "connection.host1.username" = "root"
+      "connection.host1.auth" = "{key, ~/.ssh/id_ed25519}"
 ```
