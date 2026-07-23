@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,8 +21,7 @@ func (s *sshServer) connectSSH(ctx context.Context, event arupa.SocketEvent, emi
 		return emitError(emitter, event.SocketID, "Invalid connection data: "+err.Error())
 	}
 
-	hostConfig := s.resolveHostConfig(req)
-	authMethods, err := s.authMethods(req, hostConfig)
+	hostConfig, authMethods, err := s.prepareSSH(req)
 	if err != nil {
 		return emitError(emitter, event.SocketID, err.Error())
 	}
@@ -29,32 +29,11 @@ func (s *sshServer) connectSSH(ctx context.Context, event arupa.SocketEvent, emi
 	req.Passphrase = ""
 
 	connectCtx, pending := s.startConnection(ctx, event.SocketID, hostConfig.Timeout)
-	sshClient, err := sshc.Connect(connectCtx, hostConfig, authMethods)
+	sshSess, stdout, err := openSSH(connectCtx, hostConfig, authMethods)
 	if err != nil {
-		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "SSH connection failed: "+err.Error())
+		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, err.Error())
 	}
 
-	session, err := sshClient.NewSession()
-	if err != nil {
-		_ = sshClient.Close()
-		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "Failed to create SSH session: "+err.Error())
-	}
-
-	stdin, stdout, err := sshc.SetupTerminal(session, 24, 80)
-	if err != nil {
-		_ = session.Close()
-		_ = sshClient.Close()
-		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "Failed to setup terminal: "+err.Error())
-	}
-
-	if err := session.Shell(); err != nil {
-		_ = stdin.Close()
-		_ = session.Close()
-		_ = sshClient.Close()
-		return s.emitConnectError(connectCtx, event.SocketID, pending, emitter, "Failed to start shell: "+err.Error())
-	}
-
-	sshSess := newSSHSession(sshClient, session, stdin)
 	if !s.activateSession(event.SocketID, pending, sshSess) {
 		sshSess.close()
 		return nil
@@ -75,10 +54,10 @@ func (s *sshServer) emitConnectError(connectCtx context.Context, socketID string
 	if !s.finishConnection(socketID, pending) {
 		return nil
 	}
-	if errors.Is(connectCtx.Err(), context.Canceled) {
+	if connectCtx.Err() == context.Canceled {
 		return nil
 	}
-	if errors.Is(connectCtx.Err(), context.DeadlineExceeded) {
+	if connectCtx.Err() == context.DeadlineExceeded {
 		message = "SSH connection timed out"
 	}
 	return emitError(emitter, socketID, message)
@@ -94,7 +73,10 @@ func parseConnectRequest(payload []byte) (connectRequest, error) {
 	if err := decodeFirstArg(payload, &req); err != nil {
 		return req, err
 	}
+	return normalizeConnectRequest(req)
+}
 
+func normalizeConnectRequest(req connectRequest) (connectRequest, error) {
 	req.Host = strings.TrimSpace(req.Host)
 	req.Port = strings.TrimSpace(req.Port)
 	req.Username = strings.TrimSpace(req.Username)
@@ -105,7 +87,47 @@ func parseConnectRequest(payload []byte) (connectRequest, error) {
 	if req.Host == "" || req.Username == "" {
 		return req, fmt.Errorf("host and username are required")
 	}
+	port, err := strconv.Atoi(req.Port)
+	if err != nil || port < 1 || port > 65535 {
+		return req, fmt.Errorf("port must be between 1 and 65535")
+	}
 	return req, nil
+}
+
+func (s *sshServer) prepareSSH(req connectRequest) (*sshc.Host, []ssh.AuthMethod, error) {
+	hostConfig := s.resolveHostConfig(req)
+	authMethods, err := s.authMethods(req, hostConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	return hostConfig, authMethods, nil
+}
+
+func openSSH(ctx context.Context, hostConfig *sshc.Host, authMethods []ssh.AuthMethod) (*sshSession, io.Reader, error) {
+	sshClient, err := sshc.Connect(ctx, hostConfig, authMethods)
+	if err != nil {
+		return nil, nil, fmt.Errorf("SSH connection failed: %w", err)
+	}
+
+	session, err := sshClient.NewSession()
+	if err != nil {
+		_ = sshClient.Close()
+		return nil, nil, fmt.Errorf("failed to create SSH session: %w", err)
+	}
+
+	stdin, stdout, err := sshc.SetupTerminal(session, 24, 80)
+	if err != nil {
+		_ = session.Close()
+		_ = sshClient.Close()
+		return nil, nil, fmt.Errorf("failed to setup terminal: %w", err)
+	}
+	if err := session.Shell(); err != nil {
+		_ = stdin.Close()
+		_ = session.Close()
+		_ = sshClient.Close()
+		return nil, nil, fmt.Errorf("failed to start shell: %w", err)
+	}
+	return newSSHSession(sshClient, session, stdin), stdout, nil
 }
 
 // resolveHostConfig loads ~/.ssh/config aliases when appropriate, then applies

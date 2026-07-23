@@ -1,6 +1,6 @@
 ROOT_DIR ?= ../..
 DIST_DIR ?= $(ROOT_DIR)/dist
-PLUGIN_DIR ?= $(ROOT_DIR)/plugins
+PLUGIN_DIR ?= $(ROOT_DIR)/services
 
 DIST_DIR_ABS := $(abspath $(DIST_DIR))
 PLUGIN_DIR_ABS := $(abspath $(PLUGIN_DIR))
@@ -27,6 +27,7 @@ package: build
 	cp $(DIST_DIR_ABS)/$(PLUGIN_BINARY) $(PACKAGE_WORKDIR)/Content/$(PLUGIN_BINARY)
 	cp info.yaml $(PACKAGE_WORKDIR)/info.yaml
 	$(foreach dir,$(CONTENT_DIRS),cp -R $(dir) $(PACKAGE_WORKDIR)/Content/$(dir);)
+	rm -f $(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg
 	cd $(PACKAGE_WORKDIR) && zip -qr $(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg .
 	rm -rf $(PACKAGE_WORKDIR)
 

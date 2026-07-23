@@ -10,7 +10,8 @@
     const endpoints = Object.freeze({
         connections: "/ssh/api/connections",
         secrets: "/keys",
-        revealSecret: "/keys/reveal"
+        revealSecret: "/keys/reveal",
+        terminal: "/ssh/ws"
     });
 
     const terminalColorVariables = {
@@ -127,19 +128,34 @@
         return socket === candidate;
     }
 
+    function websocketURL(path) {
+        const url = new URL(path, window.location.href);
+        url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return url.toString();
+    }
+
+    function sendSocket(candidate, event, data = null) {
+        if (!candidate || candidate.readyState !== WebSocket.OPEN) {
+            return false;
+        }
+        candidate.send(JSON.stringify({ event, data }));
+        return true;
+    }
+
     function closeSocket(candidate = socket) {
         if (!candidate || !activeSocket(candidate)) {
             return;
         }
+        sendSocket(candidate, "disconnect");
         socket = null;
-        candidate.disconnect();
+        candidate.close(1000, "client disconnect");
     }
 
     function fitTerminal() {
         requestAnimationFrame(() => {
             fitAddon.fit();
             if (state === State.CONNECTED && socket) {
-                socket.emit("resize", { cols: term.cols, rows: term.rows });
+                sendSocket(socket, "resize", { cols: term.cols, rows: term.rows });
             }
         });
     }
@@ -383,15 +399,12 @@
         }
 
         setState(State.CONNECTING, "Connecting…");
-        const nextSocket = io("/ssh", {
-            transports: ["websocket", "polling"],
-            reconnection: false
-        });
+        const nextSocket = new WebSocket(websocketURL(endpoints.terminal));
         socket = nextSocket;
 
-        nextSocket.on("connect", () => {
+        nextSocket.addEventListener("open", () => {
             if (activeSocket(nextSocket)) {
-                nextSocket.emit("connect_ssh", request);
+                sendSocket(nextSocket, "connect_ssh", request);
                 request.password = "";
                 request.passphrase = "";
                 elements.password.value = "";
@@ -400,67 +413,75 @@
             }
         });
 
-        nextSocket.on("ssh_connected", data => {
+        nextSocket.addEventListener("message", event => {
             if (!activeSocket(nextSocket)) {
                 return;
             }
-            setState(State.CONNECTED, `Connected to ${data.user}@${data.host}:${data.port}`);
-            elements.modal.close();
-            term.clear();
-            term.write(`Connected to ${data.user}@${data.host}:${data.port}\r\n`);
-            term.focus();
-            fitTerminal();
-            if (settings) {
-                void saveConnectionSettings(settings).then(() => {
-                    if (activeSocket(nextSocket)) {
-                        setState(State.CONNECTED, `Connected to ${data.user}@${data.host}:${data.port} · Saved`);
-                    }
-                }).catch(error => {
-                    if (activeSocket(nextSocket)) {
-                        setState(State.CONNECTED, `Connected · Unable to save settings: ${error.message}`);
-                    }
-                });
+            let message;
+            try {
+                message = JSON.parse(event.data);
+            } catch {
+                setState(State.ERROR, "Error: Invalid response from SSH service");
+                closeSocket(nextSocket);
+                return;
+            }
+            switch (message.event) {
+            case "ssh_connected": {
+                const data = message.data || {};
+                setState(State.CONNECTED, `Connected to ${data.user}@${data.host}:${data.port}`);
+                elements.modal.close();
+                term.clear();
+                term.write(`Connected to ${data.user}@${data.host}:${data.port}\r\n`);
+                term.focus();
+                fitTerminal();
+                if (settings) {
+                    void saveConnectionSettings(settings).then(() => {
+                        if (activeSocket(nextSocket)) {
+                            setState(State.CONNECTED, `Connected to ${data.user}@${data.host}:${data.port} · Saved`);
+                        }
+                    }).catch(error => {
+                        if (activeSocket(nextSocket)) {
+                            setState(State.CONNECTED, `Connected · Unable to save settings: ${error.message}`);
+                        }
+                    });
+                }
+                break;
+            }
+            case "ssh_error":
+                setState(State.ERROR, `Error: ${message.data || "SSH service error"}`);
+                closeSocket(nextSocket);
+                break;
+            case "ssh_disconnected": {
+                const reason = message.data || "SSH session closed";
+                setState(State.IDLE, reason);
+                term.write(`\r\n${reason}\r\n`);
+                closeSocket(nextSocket);
+                break;
+            }
+            case "terminal_output":
+                term.write(message.data || "");
+                break;
+            default:
+                break;
             }
         });
 
-        nextSocket.on("ssh_error", error => {
+        nextSocket.addEventListener("error", () => {
             if (!activeSocket(nextSocket)) {
                 return;
             }
-            setState(State.ERROR, `Error: ${error}`);
+            setState(State.ERROR, "Connection to SSH service failed");
             closeSocket(nextSocket);
         });
 
-        nextSocket.on("ssh_disconnected", message => {
-            if (!activeSocket(nextSocket)) {
-                return;
-            }
-            setState(State.IDLE, message || "Not connected");
-            term.write(`\r\n${message || "SSH session closed"}\r\n`);
-            closeSocket(nextSocket);
-        });
-
-        nextSocket.on("terminal_output", data => {
-            if (activeSocket(nextSocket)) {
-                term.write(data);
-            }
-        });
-
-        nextSocket.on("connect_error", error => {
-            if (!activeSocket(nextSocket)) {
-                return;
-            }
-            setState(State.ERROR, `Connection failed: ${error.message}`);
-            closeSocket(nextSocket);
-        });
-
-        nextSocket.on("disconnect", reason => {
+        nextSocket.addEventListener("close", event => {
             if (!activeSocket(nextSocket)) {
                 return;
             }
             socket = null;
             if (state === State.CONNECTED || state === State.CONNECTING) {
-                setState(State.IDLE, `Disconnected${reason ? `: ${reason}` : ""}`);
+                const reason = event.reason ? `: ${event.reason}` : "";
+                setState(State.IDLE, `Disconnected${reason}`);
                 term.write("\r\nSSH session closed\r\n");
             }
         });
@@ -506,7 +527,7 @@
     });
     term.onData(data => {
         if (state === State.CONNECTED && socket) {
-            socket.emit("terminal_input", data);
+            sendSocket(socket, "terminal_input", data);
         }
     });
 

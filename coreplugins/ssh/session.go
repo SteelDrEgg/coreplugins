@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -18,9 +19,14 @@ type sshSession struct {
 	session *ssh.Session
 	stdin   io.WriteCloser
 
-	mu     sync.Mutex
-	active bool
+	mu        sync.RWMutex
+	active    bool
+	writeMu   sync.Mutex
+	resizeMu  sync.Mutex
+	closeOnce sync.Once
 }
+
+var errSSHSessionInactive = errors.New("SSH session is not active")
 
 // pendingConnection represents an SSH connection that is still being
 // established for a browser socket.
@@ -137,12 +143,7 @@ func (s *sshServer) writeInput(_ context.Context, event arupa.SocketEvent, emitt
 		return emitError(emitter, event.SocketID, "No active SSH session")
 	}
 
-	sshSess.mu.Lock()
-	defer sshSess.mu.Unlock()
-	if sshSess.stdin == nil {
-		return nil
-	}
-	if _, err := sshSess.stdin.Write([]byte(input)); err != nil {
+	if err := sshSess.write([]byte(input)); err != nil {
 		return emitError(emitter, event.SocketID, "Failed to send input")
 	}
 	return nil
@@ -163,12 +164,7 @@ func (s *sshServer) resize(_ context.Context, event arupa.SocketEvent, _ arupa.E
 		return nil
 	}
 
-	sshSess.mu.Lock()
-	defer sshSess.mu.Unlock()
-	if sshSess.session != nil {
-		return sshSess.session.WindowChange(req.Rows, req.Cols)
-	}
-	return nil
+	return sshSess.resize(req.Rows, req.Cols)
 }
 
 // pipeOutput reads SSH stdout and emits terminal_output events to the browser.
@@ -194,31 +190,67 @@ func (s *sshServer) pipeOutput(socketID string, stdout io.Reader, sshSess *sshSe
 
 // isActive reports whether the session should keep accepting work.
 func (ss *sshSession) isActive() bool {
-	ss.mu.Lock()
-	defer ss.mu.Unlock()
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
 	return ss.active
+}
+
+func (ss *sshSession) write(data []byte) error {
+	if ss == nil {
+		return errSSHSessionInactive
+	}
+	ss.writeMu.Lock()
+	defer ss.writeMu.Unlock()
+
+	ss.mu.RLock()
+	active := ss.active
+	stdin := ss.stdin
+	ss.mu.RUnlock()
+	if !active || stdin == nil {
+		return errSSHSessionInactive
+	}
+	_, err := stdin.Write(data)
+	return err
+}
+
+func (ss *sshSession) resize(rows, cols int) error {
+	if ss == nil {
+		return errSSHSessionInactive
+	}
+	ss.resizeMu.Lock()
+	defer ss.resizeMu.Unlock()
+
+	ss.mu.RLock()
+	active := ss.active
+	session := ss.session
+	ss.mu.RUnlock()
+	if !active || session == nil {
+		return errSSHSessionInactive
+	}
+	return session.WindowChange(rows, cols)
 }
 
 // close tears down all SSH resources owned by the session.
 func (ss *sshSession) close() {
-	ss.mu.Lock()
-	if !ss.active {
-		ss.mu.Unlock()
+	if ss == nil {
 		return
 	}
-	ss.active = false
-	stdin := ss.stdin
-	session := ss.session
-	client := ss.client
-	ss.mu.Unlock()
+	ss.closeOnce.Do(func() {
+		ss.mu.Lock()
+		ss.active = false
+		stdin := ss.stdin
+		session := ss.session
+		client := ss.client
+		ss.mu.Unlock()
 
-	if stdin != nil {
-		_ = stdin.Close()
-	}
-	if session != nil {
-		_ = session.Close()
-	}
-	if client != nil {
-		_ = client.Close()
-	}
+		if stdin != nil {
+			_ = stdin.Close()
+		}
+		if session != nil {
+			_ = session.Close()
+		}
+		if client != nil {
+			_ = client.Close()
+		}
+	})
 }
