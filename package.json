@@ -10,7 +10,10 @@
     "check:frontends": "npm run check --workspaces --if-present",
     "build:login": "npm run build --workspace @arupa/login",
     "check:login": "npm run check --workspace @arupa/login",
-    "dev:login": "npm run dev --workspace @arupa/login"
+    "dev:login": "npm run dev --workspace @arupa/login",
+    "build:secretmanager": "npm run build --workspace @arupa/secretmanager",
+    "check:secretmanager": "npm run check --workspace @arupa/secretmanager",
+    "dev:secretmanager": "npm run dev --workspace @arupa/secretmanager"
   },
   "devDependencies": {
     "@iconify-svelte/mynaui": "1.0.5",

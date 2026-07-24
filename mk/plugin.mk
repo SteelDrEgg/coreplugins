@@ -24,7 +24,7 @@ build:
 package: build
 	rm -rf $(PACKAGE_WORKDIR)
 	mkdir -p $(PACKAGE_WORKDIR)/Content $(PLUGIN_DIR_ABS)
-	cp $(DIST_DIR_ABS)/$(PLUGIN_BINARY) $(PACKAGE_WORKDIR)/Content/$(PLUGIN_BINARY)
+	$(if $(filter static,$(PLUGIN_TYPE)),cp manifest.yaml $(PACKAGE_WORKDIR)/manifest.yaml,cp $(DIST_DIR_ABS)/$(PLUGIN_BINARY) $(PACKAGE_WORKDIR)/Content/$(PLUGIN_BINARY))
 	cp info.yaml $(PACKAGE_WORKDIR)/info.yaml
 	$(foreach dir,$(CONTENT_DIRS),cp -R $(dir) $(PACKAGE_WORKDIR)/Content/$(dir);)
 	rm -f $(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg

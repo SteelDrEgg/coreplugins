@@ -58,7 +58,7 @@ func (p *secretManagerPlugin) configure(ctx context.Context) error {
 	}
 
 	result, err = p.sdk.RegisterTransport(ctx, arupa.Transport{
-		ID: "pages", Type: arupa.TransportStatic, StaticSource: "pages/index.html",
+		ID: "pages", Type: arupa.TransportStatic, StaticSource: "build",
 	})
 	if err := requireRegistration("register pages static transport", result, err); err != nil {
 		return err
@@ -76,7 +76,7 @@ func (p *secretManagerPlugin) configure(ctx context.Context) error {
 		{ID: "keys-update", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/update", Access: authenticatedAccess}},
 		{ID: "keys-reveal", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/reveal", Access: authenticatedAccess}},
 		{ID: "keys-delete", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/delete", Access: authenticatedAccess}},
-		{ID: "keys-pages", TransportID: "pages", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/pages/index.html", Access: authenticatedAccess}},
+		{ID: "keys-pages", TransportID: "pages", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/pages/", Access: authenticatedAccess}},
 		{ID: "keys-icon", TransportID: "icon", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/icon/", Access: authenticatedAccess}},
 	})
 	if err := requireRegistration("register HTTP routes", result, err); err != nil {

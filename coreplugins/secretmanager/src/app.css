@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+	themes: false;
+}
+
+@layer base {
+	html, body { min-height: 100%; }
+	body { margin: 0; }
+}
+
+.icon {
+	display: inline-block;
+	width: 1rem;
+	height: 1rem;
+	background: currentColor;
+	mask: var(--icon-url) no-repeat center;
+	mask-size: contain;
+	-webkit-mask: var(--icon-url) no-repeat center;
+	-webkit-mask-size: contain;
+}
+
+.icon.key {
+	--icon-url: url("/keys/icon/key.svg");
+}
