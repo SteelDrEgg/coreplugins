@@ -1,0 +1,27 @@
+{
+  "name": "@arupa/coreplugins",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "coreplugins/*"
+  ],
+  "scripts": {
+    "build:frontends": "npm run build --workspaces --if-present",
+    "check:frontends": "npm run check --workspaces --if-present",
+    "build:login": "npm run build --workspace @arupa/login",
+    "check:login": "npm run check --workspace @arupa/login",
+    "dev:login": "npm run dev --workspace @arupa/login"
+  },
+  "devDependencies": {
+    "@iconify-svelte/mynaui": "1.0.5",
+    "@sveltejs/adapter-static": "3.0.10",
+    "@sveltejs/kit": "2.70.1",
+    "@tailwindcss/vite": "4.3.3",
+    "daisyui": "5.7.0",
+    "svelte": "5.56.7",
+    "svelte-check": "4.7.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vite": "6.4.3"
+  }
+}

@@ -1,17 +1,10 @@
 version: 1
 transports:
-  - id: login-page
+  - id: login-pages
     type: static
-    source: pages/login.html
-  - id: logout-page
-    type: static
-    source: pages/logout.html
+    source: build/
 routes:
-  - id: login-page
-    transport: login-page
+  - id: login-pages
+    transport: login-pages
     http:
-      pattern: /pages/login.html
-  - id: logout-page
-    transport: logout-page
-    http:
-      pattern: /pages/logout.html
+      pattern: /pages/
