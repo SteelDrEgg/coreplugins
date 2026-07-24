@@ -1,5 +1,3 @@
-//go:build wasip1
-
 package main
 
 import (
@@ -7,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
+
+	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/internal/secrets"
 )
 
 const (
@@ -29,188 +28,116 @@ type pluginMessageError string
 
 func (e pluginMessageError) Error() string { return string(e) }
 
-func newSecretManagerPlugin() *secretManagerPlugin {
-	p := &secretManagerPlugin{messages: arupa.NewMessageListener(), store: newParamsStore()}
-	for topic, handler := range map[string]arupa.MessageHandler{
+// newSecretMessageListener wires the inter-plugin message API. Every handler
+// here is a thin adapter: decode the payload, build a secrets.PluginCaller
+// from the host-authenticated message source, call into secrets.Service, and
+// translate the result to the plain-string reply this API has always used.
+func newSecretMessageListener(p *secretManagerPlugin) *arupa.ServiceMessageListener {
+	listener := arupa.NewServiceMessageListener()
+	handlers := map[string]arupa.ServiceMessageHandler{
 		topicSecretGet:    p.handleSecretGetMessage,
 		topicSecretList:   p.handleSecretListMessage,
 		topicSecretAdd:    p.handleSecretAddMessage,
 		topicSecretUpdate: p.handleSecretUpdateMessage,
 		topicSecretDelete: p.handleSecretDeleteMessage,
-	} {
-		if err := p.messages.On(topic, handler); err != nil {
+	}
+	for topic, handler := range handlers {
+		if err := listener.On(topic, handler); err != nil {
 			panic(fmt.Sprintf("register secret-manager message handler: %v", err))
 		}
 	}
-	if err := p.messages.OnAny(func(context.Context, arupa.IncomingMessage) (string, error) {
+	if err := listener.OnAny(func(context.Context, arupa.IncomingServiceMessage) (string, error) {
 		return "", pluginMessageError("unsupported topic")
 	}); err != nil {
 		panic(fmt.Sprintf("register secret-manager fallback message handler: %v", err))
 	}
-	return p
+	return listener
 }
 
-func (p *secretManagerPlugin) handleSecretGetMessage(_ context.Context, message arupa.IncomingMessage) (string, error) {
+func (p *secretManagerPlugin) handleSecretGetMessage(ctx context.Context, message arupa.IncomingServiceMessage) (string, error) {
 	var payload secretGetRequest
 	if err := json.Unmarshal(message.Payload, &payload); err != nil {
 		return "", pluginMessageError("invalid request payload")
 	}
-	if err := validateSecretName(payload.Name); err != nil {
+	source, err := pluginMessageSource(message)
+	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
-	if !p.allowed(payload.Name, message.Source) {
-		return "", pluginMessageError("plugin is not allowed to access this secret")
-	}
-	if _, err := p.store.encryption(payload.Name); err != nil {
-		return "", pluginMessageError(err.Error())
-	}
-	value, err := p.decryptSecret(payload.Name, payload.Passphrase)
+
+	value, err := p.secrets.GetSecret(ctx, secrets.PluginCaller(source), payload.Name, payload.Passphrase)
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 	return value, nil
 }
 
-func (p *secretManagerPlugin) handleSecretListMessage(_ context.Context, message arupa.IncomingMessage) (string, error) {
+func (p *secretManagerPlugin) handleSecretListMessage(ctx context.Context, message arupa.IncomingServiceMessage) (string, error) {
 	source, err := pluginMessageSource(message)
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 
-	keys, err := p.store.listSecrets()
+	keys, err := p.secrets.ListSecrets(ctx, secrets.PluginCaller(source))
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
-	visibleKeys := make([]secretMeta, 0, len(keys))
-	for _, key := range keys {
-		if allowedPlugin(key.AllowedPlugins, source) {
-			visibleKeys = append(visibleKeys, key)
-		}
-	}
-	return pluginMessageJSON(map[string]any{"keys": visibleKeys})
+	return pluginMessageJSON(map[string]any{"keys": keys})
 }
 
-func (p *secretManagerPlugin) handleSecretAddMessage(ctx context.Context, message arupa.IncomingMessage) (string, error) {
+func (p *secretManagerPlugin) handleSecretAddMessage(ctx context.Context, message arupa.IncomingServiceMessage) (string, error) {
 	return p.writeSecretMessage(ctx, message, false)
 }
 
-func (p *secretManagerPlugin) handleSecretUpdateMessage(ctx context.Context, message arupa.IncomingMessage) (string, error) {
+func (p *secretManagerPlugin) handleSecretUpdateMessage(ctx context.Context, message arupa.IncomingServiceMessage) (string, error) {
 	return p.writeSecretMessage(ctx, message, true)
 }
 
-func (p *secretManagerPlugin) writeSecretMessage(ctx context.Context, message arupa.IncomingMessage, update bool) (string, error) {
+func (p *secretManagerPlugin) writeSecretMessage(ctx context.Context, message arupa.IncomingServiceMessage, update bool) (string, error) {
 	var payload secretWriteRequest
 	if err := json.Unmarshal(message.Payload, &payload); err != nil {
 		return "", pluginMessageError("invalid request payload")
 	}
-	if err := validateSecretName(payload.Name); err != nil {
-		return "", pluginMessageError(err.Error())
-	}
 	source, err := pluginMessageSource(message)
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 
-	p.writeMu.Lock()
-	defer p.writeMu.Unlock()
-
-	if exists := p.store.hasSecret(payload.Name); exists != update {
-		if update {
-			return "", pluginMessageError("secret not found")
-		}
-		return "", pluginMessageError("secret already exists")
-	}
-	if update && !p.allowed(payload.Name, source) {
-		return "", pluginMessageError("plugin is not allowed to access this secret")
-	}
-
-	allowedPlugins := payload.AllowedPlugins
-	if !update {
-		allowedPlugins = append(allowedPlugins, source)
-	}
-	allowedPlugins, err = normalizePlugins(allowedPlugins)
+	meta, err := p.secrets.WriteSecret(ctx, secrets.PluginCaller(source), secrets.WriteSecretInput{
+		Name:           payload.Name,
+		Description:    payload.Description,
+		Value:          payload.Value,
+		Passphrase:     payload.Passphrase,
+		AllowedPlugins: payload.AllowedPlugins,
+		Update:         update,
+	})
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
-
-	var ciphertext string
-	encryption := secretEncryptionIdentity
-	if update && payload.Value == "*" {
-		if payload.Passphrase != "" {
-			return "", pluginMessageError("you must edit both value and passphrase")
-		}
-		var ok bool
-		ciphertext, ok = p.store.ciphertext(payload.Name)
-		if !ok {
-			return "", pluginMessageError("secret not found")
-		}
-		encryption, err = p.store.encryption(payload.Name)
-		if err != nil {
-			return "", pluginMessageError(err.Error())
-		}
-	} else {
-		ciphertext, encryption, err = p.encryptSecret(payload.Value, payload.Passphrase)
-		if err != nil {
-			return "", pluginMessageError(err.Error())
-		}
-	}
-
-	meta := secretMeta{
-		Name:           payload.Name,
-		Description:    strings.TrimSpace(payload.Description),
-		AllowedPlugins: allowedPlugins,
-		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
-		Encryption:     encryption,
-	}
-	if err := p.store.putSecret(ctx, ciphertext, meta); err != nil {
-		return "", pluginMessageError(err.Error())
-	}
-	return pluginMessageJSON(map[string]any{"success": true, "name": payload.Name})
+	return pluginMessageJSON(map[string]any{"success": true, "name": meta.Name})
 }
 
-func (p *secretManagerPlugin) handleSecretDeleteMessage(ctx context.Context, message arupa.IncomingMessage) (string, error) {
+func (p *secretManagerPlugin) handleSecretDeleteMessage(ctx context.Context, message arupa.IncomingServiceMessage) (string, error) {
 	var payload secretNameRequest
 	if err := json.Unmarshal(message.Payload, &payload); err != nil {
 		return "", pluginMessageError("invalid request payload")
 	}
-	if err := validateSecretName(payload.Name); err != nil {
-		return "", pluginMessageError(err.Error())
-	}
 	source, err := pluginMessageSource(message)
 	if err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 
-	p.writeMu.Lock()
-	defer p.writeMu.Unlock()
-
-	if !p.store.hasSecret(payload.Name) {
-		return "", pluginMessageError("secret not found")
-	}
-	if !p.allowed(payload.Name, source) {
-		return "", pluginMessageError("plugin is not allowed to access this secret")
-	}
-	if err := p.store.deleteSecret(ctx, payload.Name); err != nil {
+	if err := p.secrets.DeleteSecret(ctx, secrets.PluginCaller(source), payload.Name); err != nil {
 		return "", pluginMessageError(err.Error())
 	}
 	return pluginMessageJSON(map[string]any{"success": true, "name": payload.Name})
 }
 
-func pluginMessageSource(message arupa.IncomingMessage) (string, error) {
+func pluginMessageSource(message arupa.IncomingServiceMessage) (string, error) {
 	source := strings.TrimSpace(message.Source)
 	if source == "" {
 		return "", fmt.Errorf("requesting plugin is required")
 	}
 	return source, nil
-}
-
-func allowedPlugin(plugins []string, source string) bool {
-	for _, plugin := range plugins {
-		if plugin == source {
-			return true
-		}
-	}
-	return false
 }
 
 func pluginMessageJSON(payload any) (string, error) {

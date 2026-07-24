@@ -1,15 +1,13 @@
-//go:build wasip1
-
 package main
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/internal/secrets"
 )
 
 type secretWriteRequest struct {
@@ -29,6 +27,9 @@ type secretRevealRequest struct {
 	Passphrase string `json:"passphrase"`
 }
 
+// handleHTTP is the admin HTTP API used by pages/index.html. Every handler
+// here is a thin adapter: decode the request, call into secrets.Service as
+// secrets.HumanAdminCaller(), and translate the result to JSON.
 func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Request) {
 	path := strings.TrimRight(req.URL.Path, "/")
 	if path == "" {
@@ -37,13 +38,13 @@ func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Reques
 
 	switch {
 	case req.Method == http.MethodGet && path == "/keys":
-		p.listResponse(w)
+		p.listResponse(w, req.Context())
 	case req.Method == http.MethodPost && path == "/keys/add":
 		p.addResponse(w, req.Context(), req.Body)
 	case req.Method == http.MethodPost && path == "/keys/update":
 		p.updateResponse(w, req.Context(), req.Body)
 	case req.Method == http.MethodPost && path == "/keys/reveal":
-		p.revealResponse(w, req.Body)
+		p.revealResponse(w, req.Context(), req.Body)
 	case req.Method == http.MethodPost && path == "/keys/delete":
 		p.deleteResponse(w, req.Context(), req.Body)
 	default:
@@ -54,20 +55,13 @@ func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Reques
 	}
 }
 
-func (p *secretManagerPlugin) listResponse(w http.ResponseWriter) {
-	keys, err := p.store.listSecrets()
+func (p *secretManagerPlugin) listResponse(w http.ResponseWriter, ctx context.Context) {
+	keys, err := p.secrets.ListSecrets(ctx, secrets.HumanAdminCaller())
 	if err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{
-			"success": false,
-			"message": err.Error(),
-		})
+		writeServiceError(w, err)
 		return
 	}
-
-	writeJSONResponse(w, http.StatusOK, map[string]any{
-		"success": true,
-		"keys":    keys,
-	})
+	writeJSONResponse(w, http.StatusOK, map[string]any{"success": true, "keys": keys})
 }
 
 func (p *secretManagerPlugin) addResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
@@ -79,67 +73,22 @@ func (p *secretManagerPlugin) updateResponse(w http.ResponseWriter, ctx context.
 }
 
 func (p *secretManagerPlugin) writeResponse(w http.ResponseWriter, ctx context.Context, body io.Reader, update bool) {
-	p.writeMu.Lock()
-	defer p.writeMu.Unlock()
-
 	var payload secretWriteRequest
 	if err := json.NewDecoder(body).Decode(&payload); err != nil {
 		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
 		return
 	}
-	if err := validateSecretName(payload.Name); err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
-		return
-	}
-	if exists := p.store.hasSecret(payload.Name); exists != update {
-		if update {
-			writeJSONResponse(w, http.StatusNotFound, map[string]any{"success": false, "message": "Secret not found"})
-			return
-		}
-		writeJSONResponse(w, http.StatusConflict, map[string]any{"success": false, "message": "Secret already exists"})
-		return
-	}
-	allowedPlugins, err := normalizePlugins(payload.AllowedPlugins)
-	if err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
-		return
-	}
 
-	var ciphertext string
-	encryption := secretEncryptionIdentity
-	if update && payload.Value == "*" {
-		if payload.Passphrase != "" {
-			writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "You must edit both value and passphrase"})
-			return
-		}
-		var ok bool
-		ciphertext, ok = p.store.ciphertext(payload.Name)
-		if !ok {
-			writeJSONResponse(w, http.StatusNotFound, map[string]any{"success": false, "message": "Secret not found"})
-			return
-		}
-		encryption, err = p.store.encryption(payload.Name)
-		if err != nil {
-			writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
-			return
-		}
-	} else {
-		ciphertext, encryption, err = p.encryptSecret(payload.Value, payload.Passphrase)
-		if err != nil {
-			writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
-			return
-		}
-	}
-
-	meta := secretMeta{
+	meta, err := p.secrets.WriteSecret(ctx, secrets.HumanAdminCaller(), secrets.WriteSecretInput{
 		Name:           payload.Name,
-		Description:    strings.TrimSpace(payload.Description),
-		AllowedPlugins: allowedPlugins,
-		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
-		Encryption:     encryption,
-	}
-	if err := p.store.putSecret(ctx, ciphertext, meta); err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
+		Description:    payload.Description,
+		Value:          payload.Value,
+		Passphrase:     payload.Passphrase,
+		AllowedPlugins: payload.AllowedPlugins,
+		Update:         update,
+	})
+	if err != nil {
+		writeServiceError(w, err)
 		return
 	}
 
@@ -147,27 +96,19 @@ func (p *secretManagerPlugin) writeResponse(w http.ResponseWriter, ctx context.C
 	if !update {
 		status = http.StatusCreated
 	}
-	writeJSONResponse(w, status, map[string]any{"success": true, "name": payload.Name})
+	writeJSONResponse(w, status, map[string]any{"success": true, "name": meta.Name})
 }
 
-func (p *secretManagerPlugin) revealResponse(w http.ResponseWriter, body io.Reader) {
+func (p *secretManagerPlugin) revealResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
 	var payload secretRevealRequest
 	if err := json.NewDecoder(body).Decode(&payload); err != nil {
 		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
 		return
 	}
-	if err := validateSecretName(payload.Name); err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
-		return
-	}
 
-	value, err := p.decryptSecret(payload.Name, payload.Passphrase)
+	value, err := p.secrets.GetSecret(ctx, secrets.HumanAdminCaller(), payload.Name, payload.Passphrase)
 	if err != nil {
-		status := http.StatusNotFound
-		if errors.Is(err, errPassphraseRequired) || errors.Is(err, errInvalidPassphrase) {
-			status = http.StatusBadRequest
-		}
-		writeJSONResponse(w, status, map[string]any{"success": false, "message": err.Error()})
+		writeServiceError(w, err)
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, map[string]any{
@@ -178,21 +119,14 @@ func (p *secretManagerPlugin) revealResponse(w http.ResponseWriter, body io.Read
 }
 
 func (p *secretManagerPlugin) deleteResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
-	p.writeMu.Lock()
-	defer p.writeMu.Unlock()
-
 	var payload secretNameRequest
 	if err := json.NewDecoder(body).Decode(&payload); err != nil {
 		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
 		return
 	}
-	if err := validateSecretName(payload.Name); err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": err.Error()})
-		return
-	}
 
-	if err := p.store.deleteSecret(ctx, payload.Name); err != nil {
-		writeJSONResponse(w, http.StatusInternalServerError, map[string]any{"success": false, "message": err.Error()})
+	if err := p.secrets.DeleteSecret(ctx, secrets.HumanAdminCaller(), payload.Name); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, map[string]any{"success": true, "name": payload.Name})

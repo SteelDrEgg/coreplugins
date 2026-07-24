@@ -1,7 +1,7 @@
 Name: secret-manager
-Version: 0.1.4
+Version: 0.2.0
 Type: wasm
-ContractVersion: 1
+ContractVersion: 2
 Command: $PLUGIN_ROOT/secret_manager.wasm
 DisplayName: Secrets
 Category: core

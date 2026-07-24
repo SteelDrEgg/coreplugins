@@ -1,6 +1,4 @@
-//go:build wasip1
-
-package main
+package secrets
 
 import (
 	"context"
@@ -30,7 +28,9 @@ type paramsStore struct {
 	values map[string]string
 }
 
-func newParamsStore() *paramsStore {
+// NewParamsStore builds an empty paramsStore; call load once the host's
+// Params snapshot is available (typically during OnRegister).
+func NewParamsStore() *paramsStore {
 	return &paramsStore{values: make(map[string]string)}
 }
 
@@ -94,11 +94,13 @@ func (s *paramsStore) ciphertext(name string) (string, bool) {
 	return ciphertext, exists
 }
 
+// encryption looks up the single meta key for name directly, rather than
+// cloning the entire Params snapshot just to read one field.
 func (s *paramsStore) encryption(name string) (string, error) {
 	s.mu.RLock()
-	params := arupa.CloneParams(s.values)
+	raw := s.values[secretParamKey(name, paramMetaField)]
 	s.mu.RUnlock()
-	return secretEncryptionFromParams(params, name)
+	return secretEncryptionFromRaw(raw)
 }
 
 func (s *paramsStore) allows(name, plugin string) bool {
@@ -147,27 +149,15 @@ func (s *paramsStore) deleteSecret(ctx context.Context, name string) error {
 	})
 }
 
-func secretEncryptionFromParams(params map[string]string, name string) (string, error) {
-	raw := params[secretParamKey(name, paramMetaField)]
+func secretEncryptionFromRaw(raw string) (string, error) {
 	if raw == "" {
 		return secretEncryptionIdentity, nil
 	}
-
 	var meta secretMeta
 	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
-		return "", fmt.Errorf("invalid metadata for secret %q", name)
+		return "", fmt.Errorf("invalid metadata")
 	}
 	return normalizeSecretEncryption(meta.Encryption)
-}
-
-func normalizeSecretEncryption(encryption string) (string, error) {
-	if encryption == "" {
-		return secretEncryptionIdentity, nil
-	}
-	if encryption != secretEncryptionIdentity && encryption != secretEncryptionScrypt {
-		return "", fmt.Errorf("unsupported secret encryption %q", encryption)
-	}
-	return encryption, nil
 }
 
 func listSecretMeta(params map[string]string) ([]secretMeta, error) {
@@ -205,53 +195,4 @@ func listSecretMeta(params map[string]string) ([]secretMeta, error) {
 		result = append(result, meta)
 	}
 	return result, nil
-}
-
-func decodePlugins(raw string) ([]string, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
-	}
-	var plugins []string
-	if err := json.Unmarshal([]byte(raw), &plugins); err != nil {
-		return nil, err
-	}
-	return normalizePlugins(plugins)
-}
-
-func normalizePlugins(plugins []string) ([]string, error) {
-	seen := make(map[string]struct{}, len(plugins))
-	result := make([]string, 0, len(plugins))
-	for _, plugin := range plugins {
-		plugin = strings.TrimSpace(plugin)
-		if plugin == "" {
-			return nil, fmt.Errorf("allowed plugin names cannot be empty")
-		}
-		if _, ok := seen[plugin]; ok {
-			continue
-		}
-		seen[plugin] = struct{}{}
-		result = append(result, plugin)
-	}
-	sort.Strings(result)
-	return result, nil
-}
-
-func validateSecretName(name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return fmt.Errorf("secret name cannot be empty")
-	}
-	if len(name) > 128 {
-		return fmt.Errorf("secret name is too long")
-	}
-	if strings.Contains(name, "..") {
-		return fmt.Errorf("secret name cannot contain '..'")
-	}
-	for _, r := range name {
-		if r == '/' || r == '_' || r == '-' || r == '.' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
-			continue
-		}
-		return fmt.Errorf("secret name contains unsupported character %q", r)
-	}
-	return nil
 }
