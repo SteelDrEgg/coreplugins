@@ -16,10 +16,10 @@ CGO_ENABLED ?= 0
 build:
 	$(if $(PLUGIN_NAME),,$(error missing Name in info.yaml))
 	$(if $(PLUGIN_VERSION),,$(error missing Version in info.yaml))
-	$(if $(PLUGIN_BINARY),,$(error PLUGIN_BINARY is required))
+	$(if $(filter static,$(PLUGIN_TYPE)),,$(if $(PLUGIN_BINARY),,$(error PLUGIN_BINARY is required)))
 	$(if $(PACKAGE_STEM),,$(error PACKAGE_STEM is required))
 	mkdir -p $(DIST_DIR_ABS)
-	$(if $(filter wasm,$(PLUGIN_TYPE)),CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -buildmode=c-shared -ldflags "$(LD_FLAGS)" .,CGO_ENABLED=$(CGO_ENABLED) GOOS=linux GOARCH=amd64 go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -ldflags "$(LD_FLAGS)" .)
+	$(if $(filter static,$(PLUGIN_TYPE)),test -f manifest.yaml,$(if $(filter wasm,$(PLUGIN_TYPE)),CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -buildmode=c-shared -ldflags "$(LD_FLAGS)" .,CGO_ENABLED=$(CGO_ENABLED) go build -o $(DIST_DIR_ABS)/$(PLUGIN_BINARY) -ldflags "$(LD_FLAGS)" .))
 
 package: build
 	rm -rf $(PACKAGE_WORKDIR)
@@ -32,4 +32,4 @@ package: build
 	rm -rf $(PACKAGE_WORKDIR)
 
 clean:
-	rm -rf $(DIST_DIR_ABS)/$(PLUGIN_BINARY) $(PACKAGE_WORKDIR) $(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg
+	rm -rf $(if $(PLUGIN_BINARY),$(DIST_DIR_ABS)/$(PLUGIN_BINARY)) $(PACKAGE_WORKDIR) $(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg

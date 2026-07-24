@@ -1,5 +1,4 @@
-PLUGIN_TYPE := wasm
-PLUGIN_BINARY := login.wasm
+PLUGIN_TYPE := static
 PACKAGE_STEM := login
 CONTENT_DIRS := pages
 

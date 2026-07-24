@@ -1,5 +1,4 @@
-PLUGIN_TYPE := wasm
-PLUGIN_BINARY := web_assets.wasm
+PLUGIN_TYPE := static
 PACKAGE_STEM := web_assets
 CONTENT_DIRS := assets
 

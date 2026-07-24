@@ -1,0 +1,10 @@
+version: 1
+transports:
+  - id: css
+    type: static
+    source: assets/css
+routes:
+  - id: css
+    transport: css
+    http:
+      pattern: /assets/css/
