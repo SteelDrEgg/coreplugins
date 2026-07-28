@@ -41,6 +41,6 @@ record after the running record has supplied a valid, accessible entry route.
     Restart = "always"
     RunAsUser = ""
     [Services.navigator.Params]
-      order = "ssh,plugin-manager,hello"
+      order = "ssh,service-manager,hello"
       ignore = "navigator"
 ```

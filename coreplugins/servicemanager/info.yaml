@@ -1,0 +1,8 @@
+Name: service-manager
+Version: 0.2.0
+Type: static
+ContractVersion: 2
+DisplayName: Services
+Category: core
+Icon: /services/icon/puzzle.svg
+IconSolid: /services/icon/puzzle-solid.svg

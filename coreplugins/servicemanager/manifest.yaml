@@ -1,0 +1,25 @@
+version: 1
+
+transports:
+  - id: service-manager-pages
+    type: static
+    source: ui/build/
+  - id: service-manager-icons
+    type: static
+    source: ui/build/icon/
+
+routes:
+  - id: entry
+    transport: service-manager-pages
+    http:
+      method: GET
+      pattern: /services/pages/
+      access:
+        require_auth: true
+  - id: service-manager-icons
+    transport: service-manager-icons
+    http:
+      method: GET
+      pattern: /services/icon/
+      access:
+        require_auth: true

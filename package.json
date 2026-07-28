@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "coreplugins/*"
+    "coreplugins/*",
+    "coreplugins/*/ui"
   ],
   "scripts": {
     "build:frontends": "npm run build --workspaces --if-present",
@@ -16,7 +17,10 @@
     "dev:secretmanager": "npm run dev --workspace @arupa/secretmanager",
     "build:navigator": "npm run build --workspace @arupa/navigator",
     "check:navigator": "npm run check --workspace @arupa/navigator",
-    "dev:navigator": "npm run dev --workspace @arupa/navigator"
+    "dev:navigator": "npm run dev --workspace @arupa/navigator",
+    "build:servicemanager": "npm run build --workspace @arupa/servicemanager",
+    "check:servicemanager": "npm run check --workspace @arupa/servicemanager",
+    "dev:servicemanager": "npm run dev --workspace @arupa/servicemanager"
   },
   "devDependencies": {
     "@iconify-svelte/mynaui": "1.0.5",
