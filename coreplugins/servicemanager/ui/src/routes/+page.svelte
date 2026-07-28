@@ -6,7 +6,7 @@
 	import ServiceCatalog from '$lib/components/ServiceCatalog.svelte';
 	import ServiceHeader from '$lib/components/ServiceHeader.svelte';
 	import ServiceStats from '$lib/components/ServiceStats.svelte';
-	import { ServiceManager } from '$lib/stores/serviceManager.svelte';
+	import { ServiceManager } from '$lib/states/serviceManager.svelte';
 	import { connectTheme } from '$lib/utils/theme';
 
 	const manager = new ServiceManager();
