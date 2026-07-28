@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { SecretMeta } from './types';
+	import type { SecretMeta } from '../utils/types';
 	import ActionMenu from './ActionMenu.svelte';
 
 	let {

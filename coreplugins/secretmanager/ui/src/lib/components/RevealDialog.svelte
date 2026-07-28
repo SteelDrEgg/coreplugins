@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MessageKind } from './types';
+	import type { MessageKind } from '../utils/types';
 
 	let {
 		open,

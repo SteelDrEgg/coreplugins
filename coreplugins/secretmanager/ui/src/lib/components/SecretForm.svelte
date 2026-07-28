@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { SecretMeta } from './types';
-	import type { WriteSecretInput } from './api';
+	import type { SecretMeta } from '../utils/types';
+	import type { WriteSecretInput } from '../utils/api';
 
 	let {
 		editing,

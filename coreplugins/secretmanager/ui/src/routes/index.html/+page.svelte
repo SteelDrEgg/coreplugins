@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import MessageBanner from '$lib/MessageBanner.svelte';
-	import SecretTable from '$lib/SecretTable.svelte';
-	import SecretForm from '$lib/SecretForm.svelte';
-	import RevealDialog from '$lib/RevealDialog.svelte';
-	import { applyTheme, getTheme, onStoredThemeChange } from '$lib/theme';
-	import { listSecrets, addSecret, updateSecret, revealSecret, deleteSecret } from '$lib/api';
-	import type { WriteSecretInput } from '$lib/api';
-	import type { SecretMeta, BannerMessage, MessageKind } from '$lib/types';
+	import MessageBanner from '$lib/components/MessageBanner.svelte';
+	import SecretTable from '$lib/components/SecretTable.svelte';
+	import SecretForm from '$lib/components/SecretForm.svelte';
+	import RevealDialog from '$lib/components/RevealDialog.svelte';
+	import { applyTheme, getTheme, onStoredThemeChange } from '$lib/utils/theme';
+	import { listSecrets, addSecret, updateSecret, revealSecret, deleteSecret } from '$lib/utils/api';
+	import type { WriteSecretInput } from '$lib/utils/api';
+	import type { SecretMeta, BannerMessage, MessageKind } from '$lib/utils/types';
 
 	let keys: SecretMeta[] = $state([]);
 	let loaded = $state(false);

@@ -6,4 +6,4 @@ Command: $PLUGIN_ROOT/secret_manager.wasm
 DisplayName: Secrets
 Category: core
 Entry: /keys/pages/index.html
-Icon: /assets/icon/key.svg
+Icon: /keys/icon/key.svg
