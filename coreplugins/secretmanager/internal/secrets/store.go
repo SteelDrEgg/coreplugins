@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	paramIdentity      = "secretmgr.identity"
-	paramSecretsPrefix = "secrets."
-	paramSecretField   = "secret"
-	paramPolicyField   = "policy"
-	paramMetaField     = "meta"
+	paramIdentity            = "secretmgr.identity"
+	paramSecretsPrefix       = "secrets."
+	paramSecretField         = "secret"
+	paramAllowedPluginsField = "allowed_plugins"
+	paramMetaField           = "meta"
 )
 
 // paramsStore is the secret manager's persisted state. It owns both the host
@@ -109,7 +109,7 @@ func (s *paramsStore) allows(name, plugin string) bool {
 		return false
 	}
 	s.mu.RLock()
-	raw := s.values[secretParamKey(name, paramPolicyField)]
+	raw := s.values[secretParamKey(name, paramAllowedPluginsField)]
 	s.mu.RUnlock()
 	plugins, err := decodePlugins(raw)
 	return err == nil && allowedPlugin(plugins, plugin)
@@ -130,21 +130,21 @@ func (s *paramsStore) putSecret(ctx context.Context, ciphertext string, meta sec
 	if err != nil {
 		return fmt.Errorf("encode metadata: %w", err)
 	}
-	policyJSON, err := json.Marshal(meta.AllowedPlugins)
+	allowedPluginsJSON, err := json.Marshal(meta.AllowedPlugins)
 	if err != nil {
-		return fmt.Errorf("encode access policy: %w", err)
+		return fmt.Errorf("encode allowed plugins: %w", err)
 	}
 	return s.patch(ctx, map[string]string{
-		secretParamKey(meta.Name, paramSecretField): ciphertext,
-		secretParamKey(meta.Name, paramPolicyField): string(policyJSON),
-		secretParamKey(meta.Name, paramMetaField):   string(metaJSON),
+		secretParamKey(meta.Name, paramSecretField):         ciphertext,
+		secretParamKey(meta.Name, paramAllowedPluginsField): string(allowedPluginsJSON),
+		secretParamKey(meta.Name, paramMetaField):           string(metaJSON),
 	}, nil)
 }
 
 func (s *paramsStore) deleteSecret(ctx context.Context, name string) error {
 	return s.patch(ctx, nil, []string{
 		secretParamKey(name, paramSecretField),
-		secretParamKey(name, paramPolicyField),
+		secretParamKey(name, paramAllowedPluginsField),
 		secretParamKey(name, paramMetaField),
 	})
 }
@@ -186,9 +186,9 @@ func listSecretMeta(params map[string]string) ([]secretMeta, error) {
 			return nil, fmt.Errorf("invalid encryption for secret %q: %w", name, err)
 		}
 		meta.Encryption = encryption
-		plugins, err := decodePlugins(params[secretParamKey(name, paramPolicyField)])
+		plugins, err := decodePlugins(params[secretParamKey(name, paramAllowedPluginsField)])
 		if err != nil {
-			return nil, fmt.Errorf("invalid access policy for secret %q", name)
+			return nil, fmt.Errorf("invalid allowed plugins for secret %q", name)
 		}
 		meta.Name = name
 		meta.AllowedPlugins = plugins

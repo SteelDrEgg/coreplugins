@@ -13,7 +13,10 @@
     "dev:login": "npm run dev --workspace @arupa/login",
     "build:secretmanager": "npm run build --workspace @arupa/secretmanager",
     "check:secretmanager": "npm run check --workspace @arupa/secretmanager",
-    "dev:secretmanager": "npm run dev --workspace @arupa/secretmanager"
+    "dev:secretmanager": "npm run dev --workspace @arupa/secretmanager",
+    "build:navigator": "npm run build --workspace @arupa/navigator",
+    "check:navigator": "npm run check --workspace @arupa/navigator",
+    "dev:navigator": "npm run dev --workspace @arupa/navigator"
   },
   "devDependencies": {
     "@iconify-svelte/mynaui": "1.0.5",
