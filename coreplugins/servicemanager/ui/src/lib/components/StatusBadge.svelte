@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ServiceStatus } from '$utils/types';
+	import type { ServiceStatus } from '$lib/utils/types';
 
 	let { status }: { status?: ServiceStatus } = $props();
 

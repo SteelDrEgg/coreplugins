@@ -3,7 +3,7 @@
 	import Refresh from '@iconify-svelte/mynaui/refresh';
 	import Stop from '@iconify-svelte/mynaui/stop';
 	import StatusBadge from './StatusBadge.svelte';
-	import type { DiscoveredService, ServiceAction } from '$utils/types';
+	import type { DiscoveredService, ServiceAction } from '$lib/utils/types';
 
 	let {
 		services,

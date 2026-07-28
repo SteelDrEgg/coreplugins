@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DiscoveredService } from '$utils/types';
+	import type { DiscoveredService } from '$lib/utils/types';
 
 	let { services }: { services: DiscoveredService[] } = $props();
 

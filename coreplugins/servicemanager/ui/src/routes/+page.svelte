@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import DirectoryPanel from '$components/DirectoryPanel.svelte';
-	import MessageBanner from '$components/MessageBanner.svelte';
-	import RuntimePanel from '$components/RuntimePanel.svelte';
-	import ServiceCatalog from '$components/ServiceCatalog.svelte';
-	import ServiceHeader from '$components/ServiceHeader.svelte';
-	import ServiceStats from '$components/ServiceStats.svelte';
-	import { ServiceManager } from '$stores/serviceManager.svelte';
-	import { connectTheme } from '$utils/theme';
+	import DirectoryPanel from '$lib/components/DirectoryPanel.svelte';
+	import MessageBanner from '$lib/components/MessageBanner.svelte';
+	import RuntimePanel from '$lib/components/RuntimePanel.svelte';
+	import ServiceCatalog from '$lib/components/ServiceCatalog.svelte';
+	import ServiceHeader from '$lib/components/ServiceHeader.svelte';
+	import ServiceStats from '$lib/components/ServiceStats.svelte';
+	import { ServiceManager } from '$lib/stores/serviceManager.svelte';
+	import { connectTheme } from '$lib/utils/theme';
 
 	const manager = new ServiceManager();
 

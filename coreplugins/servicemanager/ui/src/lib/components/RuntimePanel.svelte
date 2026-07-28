@@ -1,6 +1,6 @@
 <script lang="ts">
 	import RuntimeList from './RuntimeList.svelte';
-	import type { RunningService } from '$utils/types';
+	import type { RunningService } from '$lib/utils/types';
 
 	let { services }: { services: RunningService[] } = $props();
 </script>

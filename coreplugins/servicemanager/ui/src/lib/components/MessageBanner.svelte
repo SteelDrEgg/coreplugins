@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { BannerMessage } from '$utils/types';
+	import type { BannerMessage } from '$lib/utils/types';
 
 	let { message }: { message: BannerMessage | null } = $props();
 

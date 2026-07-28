@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Search from '@iconify-svelte/mynaui/search';
 	import ServiceTable from './ServiceTable.svelte';
-	import type { DiscoveredService, ServiceAction } from '$utils/types';
+	import type { DiscoveredService, ServiceAction } from '$lib/utils/types';
 
 	let {
 		services,

@@ -6,14 +6,14 @@ import {
 	runServiceAction,
 	updateServiceDirectory,
 	updateServiceTempDirectory
-} from '$utils/api';
+} from '$lib/utils/api';
 import type {
 	BannerMessage,
 	DiscoveredService,
 	MessageKind,
 	RunningService,
 	ServiceAction
-} from '$utils/types';
+} from '$lib/utils/types';
 
 export class ServiceManager {
 	discovered = $state<DiscoveredService[]>([]);

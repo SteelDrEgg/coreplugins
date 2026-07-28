@@ -10,12 +10,6 @@ const config = {
 			precompress: false,
 			strict: true
 		}),
-		alias: {
-			$assets: 'src/assets',
-			$components: 'src/components',
-			$stores: 'src/stores',
-			$utils: 'src/utils'
-		},
 		paths: {
 			base: '/services/pages'
 		},
