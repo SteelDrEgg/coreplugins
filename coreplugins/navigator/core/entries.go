@@ -23,54 +23,8 @@ type navigationEntry struct {
 	IconSolid string `json:"icon_solid,omitempty"`
 }
 
-type navigatorConfig struct {
-	Order     []string
-	Ignore    map[string]struct{}
-	Languages []string
-}
-
-func parseNavigatorConfig(params map[string]string) navigatorConfig {
-	languages := splitList(params["i18n"])
-	if len(languages) == 0 {
-		languages = splitList(params["languages"])
-	}
-	if len(languages) == 0 {
-		languages = []string{"en"}
-	}
-	for index := range languages {
-		languages[index] = strings.ToLower(languages[index])
-	}
-
-	ignore := make(map[string]struct{})
-	for _, name := range splitList(params["ignore"]) {
-		ignore[name] = struct{}{}
-	}
-	return navigatorConfig{
-		Order:     splitList(params["order"]),
-		Ignore:    ignore,
-		Languages: languages,
-	}
-}
-
-func splitList(value string) []string {
-	parts := strings.Split(value, ",")
-	out := make([]string, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if _, ok := seen[part]; ok {
-			continue
-		}
-		seen[part] = struct{}{}
-		out = append(out, part)
-	}
-	return out
-}
-
 func (s *navigatorService) navigationEntries(ctx context.Context, user *arupa.User) ([]navigationEntry, error) {
+	config := s.configSnapshot()
 	records, err := s.system.ListServiceRecords(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list running services: %w", err)
@@ -84,7 +38,7 @@ func (s *navigatorService) navigationEntries(ctx context.Context, user *arupa.Us
 		if record.Name == "" {
 			continue
 		}
-		if _, ignored := s.config.Ignore[record.Name]; ignored {
+		if _, ignored := config.Ignore[record.Name]; ignored {
 			continue
 		}
 		entryRoute, ok := findEntryRoute(record.Routes, user)
@@ -102,8 +56,8 @@ func (s *navigatorService) navigationEntries(ctx context.Context, user *arupa.Us
 		entries = append(entries, entry)
 	}
 
-	order := make(map[string]int, len(s.config.Order))
-	for index, name := range s.config.Order {
+	order := make(map[string]int, len(config.Order))
+	for index, name := range config.Order {
 		order[name] = index
 	}
 	sort.SliceStable(entries, func(i, j int) bool {

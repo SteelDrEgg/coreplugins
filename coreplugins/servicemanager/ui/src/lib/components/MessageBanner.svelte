@@ -12,7 +12,7 @@
 </script>
 
 {#if message}
-	<div class={`alert alert-soft ${classes[message.kind]} text-sm`} role="status" aria-live="polite">
+	<div class={`alert ${classes[message.kind]} text-sm`} role="status" aria-live="polite">
 		<span>{message.text}</span>
 	</div>
 {/if}

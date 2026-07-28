@@ -1,3 +1,5 @@
+@import "style.css";
+
 body.light {
     --color-base-100: oklch(100% 0 0);
     --color-base-200: oklch(98% 0 0);
@@ -65,8 +67,8 @@ body.dark {
     --color-base-content: oklch(97.747% 0.007 106.545);
     --color-primary: oklch(0.7375 0.1677 303.89 / 0.2);
     --color-primary-content: oklch(0.7375 0.1677 303.89);
-    --color-secondary: oklch(0.5453 0.1677 303.89 / 0.2);
-    --color-secondary-content: oklch(0.7375 0.1677 303.89);
+    --color-secondary: oklch(0.7375 0.1677 303.89 / 0.5);
+    --color-secondary-content: color-mix(in oklab, var(--color-secondary) 30%, var(--color-base-100));
     --color-accent: oklch(83.392% 0.124 66.558);
     --color-accent-content: oklch(16.678% 0.024 66.558);
     --color-neutral: oklch(0.267 0.0037 303.89);
@@ -87,19 +89,4 @@ body.dark {
     --border: 1px;
     --depth: 1;
     --noise: 0;
-}
-
-.badge-soft {
-    border-color: currentColor;
-}
-.alert-soft {
-    border-color: currentColor;
-    color: var(--alert-color);
-    box-shadow: none;
-    background-image: none;
-}
-
-input,
-select{
-    outline: none
 }

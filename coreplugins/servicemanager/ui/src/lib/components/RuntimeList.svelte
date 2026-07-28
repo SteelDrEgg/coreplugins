@@ -25,7 +25,7 @@
 					<Servers class="size-4 shrink-0 text-base-content/50" aria-hidden="true" />
 					<span class="truncate">{serviceName(service)}</span>
 				</span>
-				<span class="badge badge-success badge-sm badge-soft">{service.type || '-'}</span>
+				<span class="badge badge-success badge-sm">{service.type || '-'}</span>
 			</div>
 			<div class="mt-2 grid gap-1 text-xs text-base-content/60">
 				<div class="truncate font-mono" title={packagePath(service)}>{packagePath(service)}</div>

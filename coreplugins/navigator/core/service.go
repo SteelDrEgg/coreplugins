@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
 	arupawasm "github.com/SteelDrEgg/arupa-sdk/golang/wasm"
@@ -12,6 +13,7 @@ import (
 const (
 	navigatorServiceName = "navigator"
 	entriesAPIPath       = "/navigator/api/entries"
+	configAPIPath        = "/navigator/api/config"
 )
 
 var authenticatedAccess = arupa.AccessPolicy{RequireAuth: true}
@@ -19,7 +21,10 @@ var authenticatedAccess = arupa.AccessPolicy{RequireAuth: true}
 type navigatorService struct {
 	sdk    *arupawasm.Service
 	system arupa.SystemStore
-	config navigatorConfig
+	params arupa.ParamsClient
+
+	configMu sync.RWMutex
+	config   navigatorConfig
 }
 
 func newNavigatorService() *navigatorService {
@@ -30,18 +35,19 @@ func newNavigatorService() *navigatorService {
 		OnRegister: service.configure,
 	}
 	service.system = arupa.NewSystemStore(service.sdk)
+	service.params = service.sdk
 	return service
 }
 
 func (s *navigatorService) configure(ctx context.Context) error {
-	s.config = parseNavigatorConfig(s.sdk.InitialParams())
+	s.storeConfig(parseNavigatorConfig(s.sdk.InitialParams()))
 
 	result, err := s.sdk.RegisterTransport(ctx, arupa.Transport{ID: "http", Type: arupa.TransportHTTP})
 	if err := requireRegistration("register HTTP transport", result, err); err != nil {
 		return err
 	}
 	result, err = s.sdk.RegisterTransport(ctx, arupa.Transport{
-		ID: "pages", Type: arupa.TransportStatic, StaticSource: "build",
+		ID: "pages", Type: arupa.TransportStatic, StaticSource: "ui/build",
 	})
 	if err := requireRegistration("register pages transport", result, err); err != nil {
 		return err
@@ -51,6 +57,14 @@ func (s *navigatorService) configure(ctx context.Context) error {
 		{
 			ID: "entries", TransportID: "http",
 			HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: entriesAPIPath, Access: authenticatedAccess},
+		},
+		{
+			ID: "config-read", TransportID: "http",
+			HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: configAPIPath, Access: authenticatedAccess},
+		},
+		{
+			ID: "config-write", TransportID: "http",
+			HTTP: &arupa.HTTPRoute{Method: http.MethodPut, Pattern: configAPIPath, Access: authenticatedAccess},
 		},
 		{
 			ID: "pages", TransportID: "pages",

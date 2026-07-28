@@ -13,7 +13,19 @@ export type EntriesPayload = {
 	languages: string[];
 };
 
+export type NavigatorConfig = {
+	icon: string;
+	order: string[];
+};
+
 export type LanguageDefinition = {
 	name?: string;
 	nativeName?: string;
+};
+
+export type MessageKind = 'info' | 'success' | 'warning' | 'error';
+
+export type BannerMessage = {
+	text: string;
+	kind: MessageKind;
 };

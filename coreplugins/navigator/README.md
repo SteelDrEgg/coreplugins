@@ -41,6 +41,16 @@ record after the running record has supplied a valid, accessible entry route.
     Restart = "always"
     RunAsUser = ""
     [Services.navigator.Params]
+      icon = "/Arupa.svg"
       order = "ssh,service-manager,hello"
       ignore = "navigator"
 ```
+
+`icon` accepts a local path or an absolute URL, including a cross-origin URL.
+`order` is a comma-separated list of service names. Both values can also be
+edited from the Navigator tab in the settings dialog; changes are persisted
+through the service Params API and take effect immediately.
+
+The General tab shows the current kernel version and can request a
+configuration reload. Reloading configuration is presented as a dangerous
+operation because it may restart, stop, or reconfigure running services.

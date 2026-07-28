@@ -1,0 +1,186 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import NavigatorSidebar from '$lib/components/NavigatorSidebar.svelte';
+	import ServiceViewport from '$lib/components/ServiceViewport.svelte';
+	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
+	import { loadEntries, loadNavigatorConfig } from '$lib/utils/api';
+	import {
+		getLanguage,
+		getTheme,
+		setLanguage,
+		setTheme,
+		subscribePreferences
+	} from '$lib/utils/preferences';
+	import type {
+		EntriesPayload,
+		LanguageDefinition,
+		NavigationEntry,
+		NavigatorConfig
+	} from '$lib/utils/types';
+
+	let entries: NavigationEntry[] = $state([]);
+	let activeID = $state('');
+	let openedIDs: string[] = $state([]);
+	let loadedIDs: string[] = $state([]);
+	let languages: string[] = $state(['en']);
+	let languageDefinitions: Record<string, LanguageDefinition> = $state({});
+	let selectedLanguage = $state('en');
+	let darkTheme = $state(false);
+	let loadingEntries = $state(true);
+	let message = $state('');
+	let mobileOpen = $state(false);
+	let navigatorConfig: NavigatorConfig = $state({ icon: '/Arupa.svg', order: [] });
+	let settingsDialog: { show: () => void };
+
+	let openedEntries = $derived(
+		openedIDs
+			.map((id) => entries.find((entry) => entry.id === id))
+			.filter((entry): entry is NavigationEntry => Boolean(entry))
+	);
+	let activeLoaded = $derived(activeID !== '' && loadedIDs.includes(activeID));
+
+	function selectEntry(id: string) {
+		if (!entries.some((entry) => entry.id === id)) return;
+		activeID = id;
+		if (!openedIDs.includes(id)) openedIDs = [...openedIDs, id];
+		mobileOpen = false;
+	}
+
+	function markLoaded(id: string) {
+		if (!loadedIDs.includes(id)) loadedIDs = [...loadedIDs, id];
+	}
+
+	function normalizeSelectedLanguage(candidate: string): string {
+		const normalized = candidate.trim().toLowerCase();
+		if (languages.includes(normalized)) return normalized;
+		const browserLanguage = navigator.language.toLowerCase().split('-')[0];
+		if (languages.includes(browserLanguage)) return browserLanguage;
+		return languages[0] || 'en';
+	}
+
+	function applyLanguage(candidate: string) {
+		selectedLanguage = normalizeSelectedLanguage(candidate);
+		document.documentElement.lang = selectedLanguage;
+	}
+
+	function changeLanguage(candidate: string) {
+		applyLanguage(setLanguage(normalizeSelectedLanguage(candidate)));
+	}
+
+	function changeTheme(enabled: boolean) {
+		darkTheme = setTheme(enabled ? 'dark' : 'light') === 'dark';
+	}
+
+	function applyEntries(payload: EntriesPayload) {
+		entries = payload.entries;
+		languages = payload.languages.map((language) => language.toLowerCase());
+		openedIDs = openedIDs.filter((id) => entries.some((entry) => entry.id === id));
+		loadedIDs = loadedIDs.filter((id) => entries.some((entry) => entry.id === id));
+		if (!entries.some((entry) => entry.id === activeID)) activeID = entries[0]?.id || '';
+		if (activeID && !openedIDs.includes(activeID)) openedIDs = [...openedIDs, activeID];
+		applyLanguage(getLanguage());
+		if (entries.length === 0) message = 'No accessible services expose an entry route.';
+	}
+
+	async function fetchLanguageDefinitions() {
+		try {
+			const response = await fetch('/assets/js/lang.json', { credentials: 'include' });
+			if (response.ok) {
+				languageDefinitions = (await response.json()) as Record<string, LanguageDefinition>;
+			}
+		} catch {
+			languageDefinitions = {};
+		}
+	}
+
+	async function refresh() {
+		loadingEntries = true;
+		message = '';
+		try {
+			applyEntries(await loadEntries());
+		} catch (error) {
+			message = error instanceof Error ? error.message : 'Failed to load navigation entries.';
+		} finally {
+			loadingEntries = false;
+		}
+	}
+
+	async function initialize() {
+		await Promise.all([
+			refresh(),
+			loadNavigatorConfig()
+				.then((config) => (navigatorConfig = config))
+				.catch((error) => {
+					message = error instanceof Error ? error.message : 'Failed to load Navigator settings.';
+				}),
+			fetchLanguageDefinitions()
+		]);
+	}
+
+	function configSaved(config: NavigatorConfig) {
+		navigatorConfig = config;
+		void refresh();
+	}
+
+	onMount(() => {
+		darkTheme = setTheme(getTheme()) === 'dark';
+		void initialize();
+		const unsubscribe = subscribePreferences(
+			(theme) => {
+				darkTheme = setTheme(theme) === 'dark';
+			},
+			(language) => applyLanguage(language)
+		);
+		const resize = () => {
+			if (window.innerWidth > 768) mobileOpen = false;
+		};
+		window.addEventListener('resize', resize);
+		return () => {
+			unsubscribe();
+			window.removeEventListener('resize', resize);
+		};
+	});
+</script>
+
+<svelte:head>
+	<title>Arupa</title>
+	<meta name="description" content="Navigate Arupa services" />
+</svelte:head>
+
+<div
+	class="grid h-screen grid-cols-[4.75rem_minmax(0,1fr)] grid-rows-1 overflow-hidden max-md:grid-cols-1 max-md:grid-rows-[3.75rem_minmax(0,1fr)]"
+>
+	<NavigatorSidebar
+		{entries}
+		{activeID}
+		loading={loadingEntries}
+		{mobileOpen}
+		brandIcon={navigatorConfig.icon}
+		onselect={selectEntry}
+		onopen={() => (mobileOpen = true)}
+		onclose={() => (mobileOpen = false)}
+		onsettings={() => settingsDialog.show()}
+	/>
+
+	<ServiceViewport
+		loading={loadingEntries}
+		{activeLoaded}
+		{message}
+		{openedEntries}
+		{activeID}
+		onrefresh={refresh}
+		onload={markLoaded}
+	/>
+</div>
+
+<SettingsDialog
+	bind:this={settingsDialog}
+	{darkTheme}
+	{selectedLanguage}
+	{languages}
+	{languageDefinitions}
+	config={navigatorConfig}
+	onThemeChange={changeTheme}
+	onLanguageChange={changeLanguage}
+	onConfigSaved={configSaved}
+/>

@@ -26,4 +26,4 @@
 	);
 </script>
 
-<span class={`badge badge-sm badge-soft ${tone}`}>{label}</span>
+<span class={`badge badge-sm ${tone}`}>{label}</span>
