@@ -3,8 +3,16 @@ transports:
   - id: css
     type: static
     source: assets/css
+  - id: lang
+    type: static
+    source: assets/js/lang.js
+
 routes:
   - id: css
     transport: css
     http:
       pattern: /assets/css/
+  - id: lang
+    transport: lang
+    http:
+      pattern: /assets/js/lang.js
