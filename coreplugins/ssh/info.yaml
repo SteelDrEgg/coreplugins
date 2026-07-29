@@ -5,6 +5,5 @@ ContractVersion: 2
 Command: $PLUGIN_ROOT/ssh-plugin
 DisplayName: SSH
 Category: core
-Entry: /ssh/pages/terminal.html
-Icon: /assets/icon/terminal.svg
-IconSolid: /assets/icon/terminal-solid.svg
+Icon: /ssh/pages/icon/terminal.svg
+IconSolid: /ssh/pages/icon/terminal-solid.svg

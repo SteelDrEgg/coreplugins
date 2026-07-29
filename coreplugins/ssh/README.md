@@ -5,23 +5,24 @@ This core plugin provides the authenticated SSH terminal application under
 its own HTTP server on that listener, and registers one inherited proxy
 transport plus the `/ssh/` route with the host.
 
+Navigation discovery uses the registered `entry` GET route at `/ssh/pages/`;
+the page entry is no longer declared in `info.yaml`.
+
 Terminal traffic uses a native WebSocket at `/ssh/ws`; it does not use the
 host's Socket.IO server. The legacy Socket.IO adapter remains in the codebase
 for now, but the v2 service does not register it.
 
 ## Layout
 
-- `main.go` hands the SDK service to the SDK-managed gRPC runtime.
-- `server.go` composes the v2 service, inherited HTTP server, transport, route,
-  static assets, and saved-connections API.
-- `websocket.go` owns WebSocket framing, connection lifecycle, and terminal
-  event dispatch.
-- `connect.go` resolves host config and contains the shared SSH connection
-  setup used by both WebSocket and the retained Socket.IO adapter.
-- `connections.go` is a standard `net/http` handler that validates and persists
-  non-sensitive connection profiles.
-- `session.go` owns PTY input, resize, output, and cleanup.
-- `payload.go` contains small JSON/path helpers.
+- `core/` contains the gRPC service, inherited HTTP server, WebSocket transport,
+  SSH connection handling, saved profiles, and tests.
+- `ui/` is a SvelteKit static application. Reusable components live under
+  `ui/src/lib/components`, transport and API helpers under `ui/src/lib/utils`,
+  and the terminal entry route under `ui/src/routes/index.html`.
+- `ui/locale/` contains the Paraglide English and Chinese catalogs. Locale
+  resolution uses `localStorage["arupa.language"]`, then the browser language,
+  then English.
+- `ui/static/` contains the plugin icons and the vendored xterm browser runtime.
 
 ## Frontend Contract
 
@@ -80,12 +81,12 @@ Run:
 make ssh
 ```
 
-This builds `dist/ssh-plugin` and packages `plugins/ssh.plg` with the binary,
-`pages/terminal.html`, and vendored frontend assets under `assets/terminal`.
+This builds the Svelte UI and `dist/ssh-plugin`, then packages `plugins/ssh.plg`
+with the binary and `ui/build`.
 
 For local debugging, put `plugins/ssh.plg` in the panel's configured
 `ServiceDir`, enable `Services.ssh`, start the panel, and open
-`/ssh/pages/terminal.html` after logging in.
+`/ssh/pages/index.html` after logging in.
 
 ## Example config
 
