@@ -36,7 +36,7 @@
 <header class="hidden items-center justify-between border-b border-base-300 bg-base-100 px-3 max-md:flex">
 	<div class="flex min-w-0 items-center gap-2 font-semibold">
 		<BrandIcon src={brandIcon} class="size-7 shrink-0" />
-		<span class="truncate">Arupa</span>
+<!--		<span class="truncate">Arupa</span>-->
 	</div>
 	<button
 		class="btn btn-square btn-ghost"
