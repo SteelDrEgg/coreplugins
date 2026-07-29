@@ -1,4 +1,6 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
 	import type { SecretMeta } from '../utils/types';
 	import type { WriteSecretInput } from '../utils/api';
 
@@ -19,6 +21,7 @@
 	let value = $state('');
 	let passphrase = $state('');
 	let allowedPlugins = $state('');
+	let localeOptions = $derived({ locale: $locale });
 
 	// Reset the draft whenever the target of editing changes (including
 	// switching back to "add" mode, where editing becomes null).
@@ -39,19 +42,21 @@
 	});
 
 	let valuePlaceholder = $derived(
-		editing ? 'Leave * unchanged, or enter a new value to replace it' : 'Secret value'
+		editing
+			? m.value_edit_placeholder({}, localeOptions)
+			: m.secret_value({}, localeOptions)
 	);
 	let passphrasePlaceholder = $derived(
 		editing
 			? editing.encryption === 'scrypt'
 				? '••••••••••••'
-				: 'Enter a passphrase to protect the new value'
-			: 'Used to encrypt secret'
+				: m.passphrase_new_value_placeholder({}, localeOptions)
+			: m.passphrase_encrypt_placeholder({}, localeOptions)
 	);
 
 	function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
-		if (!value && !window.confirm('Save an empty value?')) return;
+		if (!value && !window.confirm(m.confirm_empty_value({}, localeOptions))) return;
 		const plugins = allowedPlugins
 			.split(/[\n,]/)
 			.map((item) => item.trim())
@@ -71,28 +76,30 @@
 
 <form class="grid gap-4 p-4" onsubmit={handleSubmit}>
 	<label class="grid gap-2">
-		<span class="text-sm font-semibold text-base-content/70">Name</span>
+		<span class="text-sm font-semibold text-base-content/70">{m.name({}, localeOptions)}</span>
 		<input
 			class="input w-full font-mono"
 			required
 			maxlength="128"
-			placeholder="Unique identifier"
+			placeholder={m.unique_identifier({}, localeOptions)}
 			disabled={editing !== null || busy}
 			bind:value={name}
 		/>
 	</label>
 	<label class="grid gap-2">
-		<span class="text-sm font-semibold text-base-content/70">Description (Optional)</span>
+		<span class="text-sm font-semibold text-base-content/70">
+			{m.description_optional({}, localeOptions)}
+		</span>
 		<input
 			class="input w-full"
 			maxlength="240"
-			placeholder="Set an alias or comment"
+			placeholder={m.description_placeholder({}, localeOptions)}
 			disabled={busy}
 			bind:value={description}
 		/>
 	</label>
 	<label class="grid gap-2">
-		<span class="text-sm font-semibold text-base-content/70">Value</span>
+		<span class="text-sm font-semibold text-base-content/70">{m.value({}, localeOptions)}</span>
 		<textarea
 			class="textarea min-h-32 w-full font-mono text-sm"
 			required
@@ -103,7 +110,9 @@
 		></textarea>
 	</label>
 	<label class="grid gap-2">
-		<span class="text-sm font-semibold text-base-content/70">Passphrase (optional)</span>
+		<span class="text-sm font-semibold text-base-content/70">
+			{m.passphrase_optional({}, localeOptions)}
+		</span>
 		<input
 			class="input w-full font-mono"
 			type="password"
@@ -113,25 +122,31 @@
 			bind:value={passphrase}
 		/>
 		<span class="text-xs text-base-content/60">
-			Don't set if you're not sure that you need it.<br />
-			It takes extra time to decrypt<br />
-			You cannot retrieve secret if you forget passphrase
+			{m.passphrase_help_needed({}, localeOptions)}<br />
+			{m.passphrase_help_slow({}, localeOptions)}<br />
+			{m.passphrase_help_unrecoverable({}, localeOptions)}
 		</span>
 	</label>
 	<label class="grid gap-2">
-		<span class="text-sm font-semibold text-base-content/70">Allowed plugins</span>
+		<span class="text-sm font-semibold text-base-content/70">
+			{m.allowed_plugins({}, localeOptions)}
+		</span>
 		<textarea
 			class="textarea min-h-24 w-full font-mono text-sm"
-			placeholder="one-plugin-per-line"
+			placeholder={m.allowed_plugins_placeholder({}, localeOptions)}
 			disabled={busy}
 			bind:value={allowedPlugins}
 		></textarea>
-		<span class="text-xs text-base-content/60">Empty means no plugin can access this secret.</span>
+		<span class="text-xs text-base-content/60">
+			{m.allowed_plugins_empty({}, localeOptions)}
+		</span>
 	</label>
 	<div class="flex flex-wrap justify-end gap-2">
-		<button class="btn" type="button" disabled={busy} onclick={onCancel}>Cancel</button>
+		<button class="btn" type="button" disabled={busy} onclick={onCancel}>
+			{m.cancel({}, localeOptions)}
+		</button>
 		<button class="btn btn-primary" type="submit" disabled={busy}>
-			{editing ? 'Update secret' : 'Add secret'}
+			{editing ? m.update_secret({}, localeOptions) : m.add_secret({}, localeOptions)}
 		</button>
 	</div>
 </form>

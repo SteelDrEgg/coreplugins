@@ -4,6 +4,8 @@
 	import SecretTable from '$lib/components/SecretTable.svelte';
 	import SecretForm from '$lib/components/SecretForm.svelte';
 	import RevealDialog from '$lib/components/RevealDialog.svelte';
+	import * as m from '$lib/paraglide/messages.js';
+	import { initializeLocale, locale } from '$lib/utils/locale';
 	import { applyTheme, getTheme, onStoredThemeChange } from '$lib/utils/theme';
 	import { listSecrets, addSecret, updateSecret, revealSecret, deleteSecret } from '$lib/utils/api';
 	import type { WriteSecretInput } from '$lib/utils/api';
@@ -22,6 +24,7 @@
 	let revealOpen = $state(false);
 	let revealName = $state('');
 	let revealValue = $state('');
+	let localeOptions = $derived({ locale: $locale });
 
 	function showMessage(text: string, kind: MessageKind = 'info') {
 		message = text ? { text, kind } : null;
@@ -33,7 +36,7 @@
 	async function withBusy<T>(fn: () => Promise<T>): Promise<T> {
 		if (busyCount === 0) {
 			pendingMessage = message;
-			showMessage('Waiting for server…', 'warning');
+			showMessage(m.waiting_for_server({}, localeOptions), 'warning');
 		}
 		busyCount += 1;
 		try {
@@ -49,9 +52,12 @@
 	async function loadKeys(showLoadedMessage = false) {
 		try {
 			keys = await withBusy(() => listSecrets());
-			if (showLoadedMessage) showMessage('List refreshed', 'success');
+			if (showLoadedMessage) showMessage(m.list_refreshed({}, localeOptions), 'success');
 		} catch (error) {
-			showMessage((error as Error).message, 'error');
+			showMessage(
+				error instanceof Error ? error.message : m.unknown_error({}, localeOptions),
+				'error'
+			);
 		} finally {
 			loaded = true;
 		}
@@ -71,9 +77,17 @@
 			await withBusy(() => (isUpdate ? updateSecret(input) : addSecret(input)));
 			editing = null;
 			await loadKeys();
-			showMessage(`${isUpdate ? 'Updated' : 'Added'} ${input.name}`, 'success');
+			showMessage(
+				isUpdate
+					? m.secret_updated({ name: input.name }, localeOptions)
+					: m.secret_added({ name: input.name }, localeOptions),
+				'success'
+			);
 		} catch (error) {
-			showMessage((error as Error).message, 'error');
+			showMessage(
+				error instanceof Error ? error.message : m.unknown_error({}, localeOptions),
+				'error'
+			);
 		}
 	}
 
@@ -81,7 +95,7 @@
 		const item = keys.find((candidate) => candidate.name === name);
 		let passphrase = '';
 		if (item?.encryption === 'scrypt') {
-			const entered = window.prompt(`Passphrase for ${name}`);
+			const entered = window.prompt(m.passphrase_for({ name }, localeOptions));
 			if (entered === null) return;
 			passphrase = entered;
 		}
@@ -90,9 +104,12 @@
 			revealName = name;
 			revealValue = value;
 			revealOpen = true;
-			showMessage(`Revealed ${name}`, 'success');
+			showMessage(m.secret_revealed({ name }, localeOptions), 'success');
 		} catch (error) {
-			showMessage((error as Error).message, 'error');
+			showMessage(
+				error instanceof Error ? error.message : m.unknown_error({}, localeOptions),
+				'error'
+			);
 		}
 	}
 
@@ -102,26 +119,35 @@
 	}
 
 	async function handleDelete(name: string) {
-		if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+		if (!window.confirm(m.confirm_delete({ name }, localeOptions))) return;
 		try {
 			await withBusy(() => deleteSecret(name));
 			if (editing?.name === name) editing = null;
 			await loadKeys();
-			showMessage(`Deleted ${name}`, 'success');
+			showMessage(m.secret_deleted({ name }, localeOptions), 'success');
 		} catch (error) {
-			showMessage((error as Error).message, 'error');
+			showMessage(
+				error instanceof Error ? error.message : m.unknown_error({}, localeOptions),
+				'error'
+			);
 		}
 	}
 
 	onMount(() => {
+		const unsubscribeLocale = initializeLocale();
 		applyTheme(getTheme());
-		loadKeys();
-		return onStoredThemeChange(applyTheme);
+		void loadKeys();
+		const unsubscribeTheme = onStoredThemeChange(applyTheme);
+		return () => {
+			unsubscribeLocale();
+			unsubscribeTheme();
+		};
 	});
 </script>
 
 <svelte:head>
-	<title>Secrets</title>
+	<title>{m.page_title({}, localeOptions)}</title>
+	<meta name="description" content={m.page_description({}, localeOptions)} />
 </svelte:head>
 
 <main class="mx-auto grid w-full max-w-[1320px] gap-4 px-4 py-6 sm:py-8">
@@ -134,13 +160,15 @@
 				<span class="icon key size-5"></span>
 			</div>
 			<div class="min-w-0">
-				<h1 class="text-xl font-semibold">Secrets</h1>
-				<p class="truncate text-sm text-base-content/60">Centralized secrets manager</p>
+				<h1 class="text-xl font-semibold">{m.secrets({}, localeOptions)}</h1>
+				<p class="truncate text-sm text-base-content/60">
+					{m.page_description({}, localeOptions)}
+				</p>
 			</div>
 		</div>
 		<div class="flex flex-wrap gap-2">
 			<button class="btn btn-primary" type="button" disabled={busy} onclick={() => loadKeys(true)}>
-				Refresh
+				{m.refresh({}, localeOptions)}
 			</button>
 		</div>
 	</header>
@@ -152,18 +180,20 @@
 			<div
 				class="flex flex-col gap-3 border-b border-base-300 p-4 sm:flex-row sm:items-center sm:justify-between"
 			>
-				<h2 class="font-semibold">Secrets</h2>
+				<h2 class="font-semibold">{m.secrets({}, localeOptions)}</h2>
 				<input
 					class="input w-full sm:w-64"
 					type="search"
-					placeholder="Filter by name"
+					placeholder={m.filter_by_name({}, localeOptions)}
 					disabled={busy}
 					bind:value={filterQuery}
 				/>
 			</div>
 			<div class="min-w-0 overflow-x-auto">
 				{#if !loaded}
-					<div class="grid min-h-48 place-items-center p-6 text-base-content/60">Loading...</div>
+					<div class="grid min-h-48 place-items-center p-6 text-base-content/60">
+						{m.loading({}, localeOptions)}
+					</div>
 				{:else}
 					<SecretTable
 						{keys}
@@ -178,12 +208,16 @@
 
 		<div class="grid gap-4">
 			<div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm">
-				<div class="stat-title">Managed secrets</div>
+				<div class="stat-title">{m.managed_secrets({}, localeOptions)}</div>
 				<div class="stat-value text-2xl">{keys.length}</div>
 			</div>
 			<aside class="card h-fit min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm">
 				<div class="border-b border-base-300 p-4">
-					<h2 class="font-semibold">{editing ? 'Edit secret' : 'Add secret'}</h2>
+					<h2 class="font-semibold">
+						{editing
+							? m.edit_secret({}, localeOptions)
+							: m.add_secret({}, localeOptions)}
+					</h2>
 				</div>
 				<SecretForm {editing} {busy} onSave={handleSave} onCancel={cancelEdit} />
 			</aside>
@@ -193,9 +227,9 @@
 
 <RevealDialog
 	open={revealOpen}
-	title={`Secret: ${revealName}`}
+	title={m.revealed_secret_title({ name: revealName }, localeOptions)}
 	value={revealValue}
-	warning="HTTP is not safe, this secret may be compromised"
+	warning={m.http_warning({}, localeOptions)}
 	onClose={closeReveal}
 	onMessage={showMessage}
 />

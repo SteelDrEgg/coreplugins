@@ -3,6 +3,8 @@
 	import Refresh from '@iconify-svelte/mynaui/refresh';
 	import Stop from '@iconify-svelte/mynaui/stop';
 	import StatusBadge from './StatusBadge.svelte';
+	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
 	import type { DiscoveredService, ServiceAction } from '$lib/utils/types';
 
 	let {
@@ -14,6 +16,7 @@
 		busy: boolean;
 		onAction: (action: ServiceAction, name: string) => void;
 	} = $props();
+	let localeOptions = $derived({ locale: $locale });
 
 	const fallbackIcon = '/services/icon/puzzle.svg';
 
@@ -56,18 +59,18 @@
 
 {#if services.length === 0}
 	<div class="grid min-h-56 place-items-center p-6 text-center text-base-content/60">
-		No services match the current filter.
+		{m.no_services_match({}, localeOptions)}
 	</div>
 {:else}
 	<div class="overflow-x-auto">
 		<table class="table table-zebra min-w-[760px]">
 			<thead>
 				<tr>
-					<th>Service</th>
-					<th>Status</th>
-					<th>Type</th>
-					<th>Package</th>
-					<th>Actions</th>
+					<th>{m.service({}, localeOptions)}</th>
+					<th>{m.status({}, localeOptions)}</th>
+					<th>{m.type({}, localeOptions)}</th>
+					<th>{m.package({}, localeOptions)}</th>
+					<th>{m.actions({}, localeOptions)}</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -110,7 +113,8 @@
 									disabled={busy || !canRun('start', service.status)}
 									onclick={() => onAction('start', service.name)}
 								>
-									<Play class="size-4" aria-hidden="true" /> Start
+									<Play class="size-4" aria-hidden="true" />
+									{m.start({}, localeOptions)}
 								</button>
 								<button
 									class="btn btn-sm"
@@ -118,7 +122,8 @@
 									disabled={busy || !canRun('restart', service.status)}
 									onclick={() => onAction('restart', service.name)}
 								>
-									<Refresh class="size-4" aria-hidden="true" /> Restart
+									<Refresh class="size-4" aria-hidden="true" />
+									{m.restart({}, localeOptions)}
 								</button>
 								<button
 									class="btn btn-sm"
@@ -126,7 +131,8 @@
 									disabled={busy || !canRun('stop', service.status)}
 									onclick={() => onAction('stop', service.name)}
 								>
-									<Stop class="size-4" aria-hidden="true" /> Stop
+									<Stop class="size-4" aria-hidden="true" />
+									{m.stop({}, localeOptions)}
 								</button>
 							</div>
 						</td>

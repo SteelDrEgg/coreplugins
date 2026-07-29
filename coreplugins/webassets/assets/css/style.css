@@ -37,9 +37,10 @@ body.dark {
         color: var(--alert-color);
         box-shadow: none;
     }
+}
 
-    input,
-    select {
-        outline: none
-    }
+input,
+select,
+textarea {
+    outline: none
 }

@@ -7,6 +7,7 @@ import {
 	updateServiceDirectory,
 	updateServiceTempDirectory
 } from '$lib/utils/api';
+import * as m from '$lib/paraglide/messages.js';
 import type {
 	BannerMessage,
 	DiscoveredService,
@@ -63,9 +64,9 @@ export class ServiceManager {
 	async refresh(showNotice = false) {
 		try {
 			await this.withBusy(() => this.fetchState());
-			if (showNotice) this.showMessage('Service list refreshed', 'success');
+			if (showNotice) this.showMessage(m.service_list_refreshed(), 'success');
 		} catch (error) {
-			this.showMessage(this.errorMessage(error, 'Failed to load services'), 'error');
+			this.showMessage(this.errorMessage(error, m.failed_load_services()), 'error');
 		} finally {
 			this.loaded = true;
 		}
@@ -74,20 +75,29 @@ export class ServiceManager {
 	async runAction(action: ServiceAction, name: string) {
 		this.showMessage('');
 		try {
-			const message = await this.withBusy(async () => {
-				const result = await runServiceAction(action, name);
+			await this.withBusy(async () => {
+				await runServiceAction(action, name);
 				await this.fetchState();
-				return result;
 			});
-			this.showMessage(message, 'success');
+			const successMessage = {
+				start: m.service_started,
+				restart: m.service_restarted,
+				stop: m.service_stopped
+			}[action];
+			this.showMessage(successMessage(), 'success');
 		} catch (error) {
-			this.showMessage(this.errorMessage(error, `Failed to ${action} service`), 'error');
+			const fallbackMessage = {
+				start: m.failed_start_service,
+				restart: m.failed_restart_service,
+				stop: m.failed_stop_service
+			}[action];
+			this.showMessage(this.errorMessage(error, fallbackMessage()), 'error');
 		}
 	}
 
 	async saveDirectories(serviceDir: string, tempDir: string) {
 		if (serviceDir === this.serviceDir && tempDir === this.tempDir) {
-			this.showMessage('No directory changes to save');
+			this.showMessage(m.no_directory_changes());
 			return;
 		}
 
@@ -100,12 +110,12 @@ export class ServiceManager {
 			});
 			this.showMessage(
 				this.tempDirRequiresRestart
-					? 'Directories saved. Restart the Kernel to apply the temporary directory.'
-					: 'Directories saved',
+					? m.directories_saved_restart()
+					: m.directories_saved(),
 				this.tempDirRequiresRestart ? 'warning' : 'success'
 			);
 		} catch (error) {
-			this.showMessage(this.errorMessage(error, 'Failed to save directories'), 'error');
+			this.showMessage(this.errorMessage(error, m.failed_save_directories()), 'error');
 			await this.refresh();
 		}
 	}

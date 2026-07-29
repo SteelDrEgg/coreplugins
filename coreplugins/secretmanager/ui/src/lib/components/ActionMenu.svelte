@@ -1,4 +1,7 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
+
 	let {
 		anchor,
 		onEdit,
@@ -16,6 +19,7 @@
 	let menuEl: HTMLUListElement | undefined = $state();
 	let left = $state(0);
 	let top = $state(0);
+	let localeOptions = $derived({ locale: $locale });
 
 	$effect(() => {
 		if (!anchor || !menuEl) return;
@@ -67,8 +71,12 @@
 		style={`position: fixed; left: ${left}px; top: ${top}px;`}
 		role="menu"
 	>
-		<li><button type="button" onclick={onEdit}>Edit</button></li>
-		<li><button type="button" onclick={onReveal}>Reveal</button></li>
-		<li><button type="button" class="text-error" onclick={onDelete}>Delete</button></li>
+		<li><button type="button" onclick={onEdit}>{m.edit({}, localeOptions)}</button></li>
+		<li><button type="button" onclick={onReveal}>{m.reveal({}, localeOptions)}</button></li>
+		<li>
+			<button type="button" class="text-error" onclick={onDelete}>
+				{m.delete({}, localeOptions)}
+			</button>
+		</li>
 	</ul>
 {/if}

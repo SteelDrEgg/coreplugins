@@ -1,4 +1,6 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
 	import type { SecretMeta } from '../utils/types';
 	import ActionMenu from './ActionMenu.svelte';
 
@@ -18,6 +20,7 @@
 
 	let openMenuName: string | null = $state(null);
 	let openMenuAnchor: HTMLElement | null = $state(null);
+	let localeOptions = $derived({ locale: $locale });
 
 	let filteredKeys = $derived.by(() => {
 		const query = filterQuery.trim().toLowerCase();
@@ -50,15 +53,15 @@
 
 {#if filteredKeys.length === 0}
 	<div class="grid min-h-48 place-items-center p-6 text-center text-base-content/60">
-		No secrets found
+		{m.no_secrets_found({}, localeOptions)}
 	</div>
 {:else}
 	<table class="table table-zebra">
 		<thead>
 			<tr>
-				<th>Name</th>
-				<th>Allowed plugins</th>
-				<th>Updated</th>
+				<th>{m.name({}, localeOptions)}</th>
+				<th>{m.allowed_plugins({}, localeOptions)}</th>
+				<th>{m.updated({}, localeOptions)}</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -68,13 +71,13 @@
 						<div class="min-w-0 flex-1">
 							<div class="truncate font-mono text-sm" title={item.name}>{item.name}</div>
 							<div class="truncate text-xs text-base-content/60">
-								{item.description || 'No description'}
+								{item.description || m.no_description({}, localeOptions)}
 							</div>
 						</div>
 					</td>
 					<td class="max-w-52">
 						<div class="truncate text-sm" title={(item.allowed_plugins || []).join(', ')}>
-							{(item.allowed_plugins || []).join(', ') || 'None'}
+							{(item.allowed_plugins || []).join(', ') || m.none({}, localeOptions)}
 						</div>
 					</td>
 					<td class="whitespace-nowrap text-xs text-base-content/60">
@@ -85,7 +88,7 @@
 								class="action-menu-trigger btn btn-ghost btn-xs px-2"
 								aria-haspopup="menu"
 								aria-expanded={openMenuName === item.name}
-								aria-label={`Actions for ${item.name}`}
+								aria-label={m.actions_for({ name: item.name }, localeOptions)}
 								onclick={(event) => toggleMenu(item.name, event.currentTarget as HTMLElement)}
 							>
 								⋮

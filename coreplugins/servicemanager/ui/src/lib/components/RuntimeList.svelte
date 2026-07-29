@@ -1,11 +1,14 @@
 <script lang="ts">
 	import Servers from '@iconify-svelte/mynaui/servers';
+	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
 	import type { RunningService } from '$lib/utils/types';
 
 	let { services }: { services: RunningService[] } = $props();
+	let localeOptions = $derived({ locale: $locale });
 
 	function serviceName(service: RunningService): string {
-		return service.name || service.instance_id || 'Unnamed service';
+		return service.name || service.instance_id || m.unnamed_service({}, localeOptions);
 	}
 
 	function packagePath(service: RunningService): string {
@@ -15,7 +18,7 @@
 
 {#if services.length === 0}
 	<div class="grid min-h-32 place-items-center text-center text-base-content/60">
-		No running services
+		{m.no_running_services({}, localeOptions)}
 	</div>
 {:else}
 	{#each services as service, index (service.instance_id || `${service.name}-${index}`)}
@@ -30,7 +33,13 @@
 			<div class="mt-2 grid gap-1 text-xs text-base-content/60">
 				<div class="truncate font-mono" title={packagePath(service)}>{packagePath(service)}</div>
 				<div>
-					{service.routes?.length || 0} routes / {service.transports?.length || 0} transports
+					{m.runtime_counts(
+						{
+							routes: service.routes?.length || 0,
+							transports: service.transports?.length || 0
+						},
+						localeOptions
+					)}
 				</div>
 			</div>
 		</div>

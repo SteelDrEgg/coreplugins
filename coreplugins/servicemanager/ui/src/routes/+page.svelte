@@ -6,21 +6,28 @@
 	import ServiceCatalog from '$lib/components/ServiceCatalog.svelte';
 	import ServiceHeader from '$lib/components/ServiceHeader.svelte';
 	import ServiceStats from '$lib/components/ServiceStats.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	import { ServiceManager } from '$lib/states/serviceManager.svelte';
+	import { initializeLocale, locale } from '$lib/utils/locale';
 	import { connectTheme } from '$lib/utils/theme';
 
 	const manager = new ServiceManager();
+	let localeOptions = $derived({ locale: $locale });
 
 	onMount(() => {
+		const disconnectLocale = initializeLocale();
 		const disconnectTheme = connectTheme();
 		void manager.refresh();
-		return disconnectTheme;
+		return () => {
+			disconnectLocale();
+			disconnectTheme();
+		};
 	});
 </script>
 
 <svelte:head>
-	<title>Services</title>
-	<meta name="description" content="Discover, configure, and manage Arupa services" />
+	<title>{m.page_title({}, localeOptions)}</title>
+	<meta name="description" content={m.page_description({}, localeOptions)} />
 </svelte:head>
 
 <main

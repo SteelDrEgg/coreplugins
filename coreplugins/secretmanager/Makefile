@@ -9,7 +9,7 @@ UI_DIR := ui
 ROOT_PACKAGE_JSON := $(WORKSPACE_ROOT)/package.json
 ROOT_PACKAGE_LOCK := $(WORKSPACE_ROOT)/package-lock.json
 ROOT_NODE_MODULES_STAMP := $(WORKSPACE_ROOT)/node_modules/.package-lock.json
-FRONTEND_SOURCES := $(UI_DIR)/package.json $(ROOT_PACKAGE_JSON) $(ROOT_PACKAGE_LOCK) $(UI_DIR)/svelte.config.js $(UI_DIR)/tsconfig.json $(UI_DIR)/vite.config.ts $(shell find $(UI_DIR)/src $(UI_DIR)/static -type f)
+FRONTEND_SOURCES := $(UI_DIR)/package.json $(ROOT_PACKAGE_JSON) $(ROOT_PACKAGE_LOCK) $(UI_DIR)/paraglide.config.js $(UI_DIR)/svelte.config.js $(UI_DIR)/tsconfig.json $(UI_DIR)/vite.config.ts $(shell find $(UI_DIR)/locale $(UI_DIR)/project.inlang $(UI_DIR)/scripts $(UI_DIR)/src $(UI_DIR)/static -type f)
 
 .PHONY: frontend-build frontend-clean
 

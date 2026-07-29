@@ -1,4 +1,6 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
 	import type { MessageKind } from '../utils/types';
 
 	let {
@@ -18,6 +20,7 @@
 	} = $props();
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
+	let localeOptions = $derived({ locale: $locale });
 
 	$effect(() => {
 		if (!dialogEl) return;
@@ -31,10 +34,10 @@
 	async function copyValue() {
 		try {
 			await navigator.clipboard.writeText(value);
-			onMessage('Copied to clipboard', 'success');
+			onMessage(m.copied_to_clipboard({}, localeOptions), 'success');
 		} catch {
 			dialogEl?.querySelector('textarea')?.select();
-			onMessage('Clipboard access failed; the value is selected for manual copying', 'info');
+			onMessage(m.clipboard_access_failed({}, localeOptions), 'info');
 		}
 	}
 </script>
@@ -46,9 +49,13 @@
 		<textarea class="textarea mt-4 min-h-40 w-full select-all font-mono text-sm" readonly value={value}
 		></textarea>
 		<div class="modal-action">
-			<button class="btn" type="button" onclick={copyValue}>Copy</button>
-			<button class="btn btn-primary" type="button" onclick={() => dialogEl?.close()}>Close</button>
+			<button class="btn" type="button" onclick={copyValue}>{m.copy({}, localeOptions)}</button>
+			<button class="btn btn-primary" type="button" onclick={() => dialogEl?.close()}>
+				{m.close({}, localeOptions)}
+			</button>
 		</div>
 	</div>
-	<form method="dialog" class="modal-backdrop"><button>close</button></form>
+	<form method="dialog" class="modal-backdrop">
+		<button aria-label={m.close_dialog({}, localeOptions)}>{m.close({}, localeOptions)}</button>
+	</form>
 </dialog>

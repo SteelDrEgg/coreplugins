@@ -1,3 +1,4 @@
+import * as m from '$lib/paraglide/messages.js';
 import type { SecretMeta } from './types';
 
 type ApiPayload = {
@@ -24,10 +25,10 @@ async function api<T extends ApiPayload>(path: string, options: RequestInit = {}
 	try {
 		payload = (await response.json()) as ApiPayload;
 	} catch {
-		throw new ApiError('Invalid server response');
+		throw new ApiError(m.api_invalid_response());
 	}
 	if (!response.ok || !payload.success) {
-		throw new ApiError(payload.message || 'Request failed');
+		throw new ApiError(payload.message || m.request_failed({ status: response.status }));
 	}
 	return payload as T;
 }

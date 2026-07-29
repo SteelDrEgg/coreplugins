@@ -5,6 +5,7 @@ import type {
 	ServiceDirectory,
 	ServiceTempDirectory
 } from './types';
+import * as m from '$lib/paraglide/messages.js';
 import { serviceAPIErrorMessages } from './errorMessages';
 
 type ApiEnvelope<T> = {
@@ -46,12 +47,15 @@ function httpError(
 	rawBody: string
 ): ApiError {
 	const knownMessage = serviceAPIErrorMessages[response.status];
-	if (knownMessage) return new ApiError(knownMessage, response.status, path);
+	if (knownMessage) return new ApiError(knownMessage(), response.status, path);
 
 	const detail = responseMessage(payload, rawBody);
 	const status = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
 	return new ApiError(
-		`Service API request failed (${status})${detail ? `: ${detail}` : ''}`,
+		m.service_api_request_failed({
+			status,
+			detail: detail ? `: ${detail}` : ''
+		}),
 		response.status,
 		path
 	);
@@ -76,24 +80,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiE
 		if (rawBody.trim()) payload = JSON.parse(rawBody) as ApiEnvelope<T>;
 	} catch {
 		if (!response.ok) throw httpError(response, path, null, rawBody);
-		throw new ApiError(
-			`Service API returned invalid JSON (HTTP ${response.status} ${response.statusText || 'OK'})`,
-			response.status,
-			path
-		);
+		throw new ApiError(m.service_api_invalid_json(), response.status, path);
 	}
 
 	if (!response.ok) throw httpError(response, path, payload, rawBody);
 	if (!payload) {
-		throw new ApiError(
-			`Service API returned an empty response (HTTP ${response.status} ${response.statusText || 'OK'})`,
-			response.status,
-			path
-		);
+		throw new ApiError(m.service_api_empty_response(), response.status, path);
 	}
 	if (!payload.success) {
 		throw new ApiError(
-			payload.message || payload.error || 'Service API reported an unsuccessful request',
+			payload.message || payload.error || m.service_api_unsuccessful(),
 			response.status,
 			path
 		);
@@ -110,19 +106,19 @@ export async function listDiscoveredServices(): Promise<DiscoveredService[]> {
 	const payload = await request<{ services?: DiscoveredService[] }>(
 		'/api/service/discovered?include=metadata'
 	);
-	const data = requiredData(payload, 'Discovered services response has no data');
+	const data = requiredData(payload, m.discovered_services_no_data());
 	return Array.isArray(data.services) ? data.services : [];
 }
 
 export async function listRunningServices(): Promise<RunningService[]> {
 	const payload = await request<{ services?: RunningService[] }>('/api/service/running');
-	const data = requiredData(payload, 'Running services response has no data');
+	const data = requiredData(payload, m.running_services_no_data());
 	return Array.isArray(data.services) ? data.services : [];
 }
 
 export async function getServiceDirectory(): Promise<ServiceDirectory> {
 	const payload = await request<ServiceDirectory>('/api/service/dir');
-	return requiredData(payload, 'Service directory response has no data');
+	return requiredData(payload, m.service_directory_no_data());
 }
 
 export async function updateServiceDirectory(serviceDir: string): Promise<ServiceDirectory> {
@@ -130,12 +126,12 @@ export async function updateServiceDirectory(serviceDir: string): Promise<Servic
 		method: 'PATCH',
 		body: JSON.stringify({ service_dir: serviceDir })
 	});
-	return requiredData(payload, 'Service directory response has no data');
+	return requiredData(payload, m.service_directory_no_data());
 }
 
 export async function getServiceTempDirectory(): Promise<ServiceTempDirectory> {
 	const payload = await request<ServiceTempDirectory>('/api/service/temp-dir');
-	return requiredData(payload, 'Service temporary directory response has no data');
+	return requiredData(payload, m.temporary_directory_no_data());
 }
 
 export async function updateServiceTempDirectory(tempDir: string): Promise<ServiceTempDirectory> {
@@ -143,13 +139,12 @@ export async function updateServiceTempDirectory(tempDir: string): Promise<Servi
 		method: 'PATCH',
 		body: JSON.stringify({ temp_dir: tempDir })
 	});
-	return requiredData(payload, 'Service temporary directory response has no data');
+	return requiredData(payload, m.temporary_directory_no_data());
 }
 
-export async function runServiceAction(action: ServiceAction, name: string): Promise<string> {
-	const payload = await request<{ name?: string }>(
+export async function runServiceAction(action: ServiceAction, name: string): Promise<void> {
+	await request<{ name?: string }>(
 		`/api/service/${action}/${encodeURIComponent(name)}`,
 		{ method: 'POST' }
 	);
-	return payload.message || `Service ${action} completed`;
 }
