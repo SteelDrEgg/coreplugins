@@ -10,7 +10,6 @@ export type NavigationEntry = {
 
 export type EntriesPayload = {
 	entries: NavigationEntry[];
-	languages: string[];
 };
 
 export type NavigatorConfig = {
@@ -19,8 +18,8 @@ export type NavigatorConfig = {
 };
 
 export type LanguageDefinition = {
-	name?: string;
-	nativeName?: string;
+	name: string;
+	nativeName: string;
 };
 
 export type MessageKind = 'info' | 'success' | 'warning' | 'error';

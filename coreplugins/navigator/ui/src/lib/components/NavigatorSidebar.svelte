@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CogFourIcon from '@iconify-svelte/mynaui/cog-four';
 	import SidebarIcon from '@iconify-svelte/mynaui/sidebar';
+	import * as m from '$lib/paraglide/messages.js';
 	import type { NavigationEntry } from '$lib/utils/types';
 	import BrandIcon from './BrandIcon.svelte';
 	import MynauiIcon from './MynauiIcon.svelte';
@@ -40,7 +41,7 @@
 	<button
 		class="btn btn-square btn-ghost"
 		type="button"
-		aria-label="Open navigation"
+		aria-label={m.open_navigation()}
 		onclick={onopen}
 	>
 		<SidebarIcon height="1.25em" aria-hidden="true" />
@@ -57,11 +58,11 @@
 
 	<nav
 		class="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto px-2 py-3"
-		aria-label="Service navigation"
+		aria-label={m.service_navigation()}
 	>
 		{#if loading}
 			<div class="grid min-h-24 place-items-center text-base-content/50">
-				<span class="loading loading-spinner loading-sm" aria-label="Loading services"></span>
+				<span class="loading loading-spinner loading-sm" aria-label={m.loading_services()}></span>
 			</div>
 		{:else}
 			{#each entries as entry (entry.id)}
@@ -94,8 +95,8 @@
 		<button
 			class="btn btn-square btn-ghost"
 			type="button"
-			title="Settings"
-			aria-label="Settings"
+			title={m.settings()}
+			aria-label={m.settings()}
 			onclick={onsettings}
 		>
 			<CogFourIcon height="1.25em" aria-hidden="true" />
@@ -107,7 +108,7 @@
 	<button
 		class="fixed inset-0 z-30 bg-neutral/40 md:hidden"
 		type="button"
-		aria-label="Close navigation"
+		aria-label={m.close_navigation()}
 		onclick={onclose}
 	></button>
 {/if}

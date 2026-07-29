@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
 	import type { NavigationEntry } from '$lib/utils/types';
 
 	let {
@@ -23,7 +24,7 @@
 <main class="relative min-h-0 min-w-0 overflow-hidden bg-base-100">
 	{#if loading || (activeID && !activeLoaded)}
 		<div class="absolute inset-0 z-10 grid place-items-center bg-base-100 text-base-content/60">
-			<span class="loading loading-spinner loading-md" aria-label="Loading page"></span>
+			<span class="loading loading-spinner loading-md" aria-label={m.loading_page()}></span>
 		</div>
 	{/if}
 
@@ -33,7 +34,7 @@
 			role="status"
 		>
 			<span>{message}</span>
-			<button class="btn btn-sm" type="button" onclick={onrefresh}>Retry</button>
+			<button class="btn btn-sm" type="button" onclick={onrefresh}>{m.retry()}</button>
 		</div>
 	{/if}
 

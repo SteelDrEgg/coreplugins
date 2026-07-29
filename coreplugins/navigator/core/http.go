@@ -42,12 +42,10 @@ func (s *navigatorService) handleHTTP(writer http.ResponseWriter, request *http.
 		})
 		return
 	}
-	config := s.configSnapshot()
 	writeJSON(writer, http.StatusOK, map[string]any{
 		"success": true,
 		"data": map[string]any{
-			"entries":   entries,
-			"languages": config.Languages,
+			"entries": entries,
 		},
 	})
 }

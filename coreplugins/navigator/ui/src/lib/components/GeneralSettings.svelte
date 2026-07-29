@@ -1,13 +1,14 @@
 <script lang="ts">
 	import DangerTriangleIcon from '@iconify-svelte/mynaui/danger-triangle';
 	import RefreshIcon from '@iconify-svelte/mynaui/refresh';
-	import type { LanguageDefinition } from '$lib/utils/types';
+	import * as m from '$lib/paraglide/messages.js';
+	import type { Locale } from '$lib/paraglide/runtime.js';
+	import type { AvailableLanguage } from '$lib/utils/locale';
 
 	let {
 		darkTheme,
 		selectedLanguage,
 		languages,
-		languageDefinitions,
 		kernelVersion,
 		busy,
 		onThemeChange,
@@ -15,9 +16,8 @@
 		onReload
 	}: {
 		darkTheme: boolean;
-		selectedLanguage: string;
-		languages: string[];
-		languageDefinitions: Record<string, LanguageDefinition>;
+		selectedLanguage: Locale;
+		languages: AvailableLanguage[];
 		kernelVersion: string;
 		busy: boolean;
 		onThemeChange: (enabled: boolean) => void;
@@ -27,40 +27,38 @@
 
 	let confirmReload = $state(false);
 
-	function languageLabel(code: string): string {
-		const definition = languageDefinitions[code] || { name: code };
-		const name = definition.name || code;
-		return definition.nativeName && definition.nativeName !== name
-			? `${name} (${definition.nativeName})`
-			: name;
+	function languageLabel(language: AvailableLanguage): string {
+		return language.nativeName && language.nativeName !== language.name
+			? `${language.name} (${language.nativeName})`
+			: language.name;
 	}
 </script>
 
 <div class="space-y-4">
 	<label class="flex items-center justify-between gap-4 rounded-lg border border-base-300 p-4">
 		<span>
-			<span class="block font-medium">Theme</span>
-			<span class="text-xs text-base-content/60">{darkTheme ? 'Dark' : 'Light'}</span>
+			<span class="block font-medium">{m.theme()}</span>
+			<span class="text-xs text-base-content/60">{darkTheme ? m.theme_dark() : m.theme_light()}</span>
 		</span>
 		<input
 			class="toggle toggle-primary"
 			type="checkbox"
 			checked={darkTheme}
-			aria-label="Toggle dark theme"
+			aria-label={m.toggle_dark_theme()}
 			onchange={(event) => onThemeChange(event.currentTarget.checked)}
 		/>
 	</label>
 
 	<label class="grid gap-2 rounded-lg border border-base-300 p-4">
-		<span class="font-medium">Language</span>
+		<span class="font-medium">{m.language()}</span>
 		<select
 			class="select w-full"
 			value={selectedLanguage}
-			aria-label="Language"
+			aria-label={m.language()}
 			onchange={(event) => onLanguageChange(event.currentTarget.value)}
 		>
 			{#each languages as language}
-				<option value={language}>{languageLabel(language)}</option>
+				<option value={language.code}>{languageLabel(language)}</option>
 			{/each}
 		</select>
 	</label>
@@ -68,8 +66,10 @@
 	<section class="rounded-lg border border-base-300 p-4" aria-labelledby="kernel-heading">
 		<div class="flex items-center justify-between gap-3">
 			<div>
-				<h3 class="font-medium" id="kernel-heading">Kernel</h3>
-				<p class="text-xs text-base-content/60">Version {kernelVersion || 'loading…'}</p>
+				<h3 class="font-medium" id="kernel-heading">{m.kernel()}</h3>
+				<p class="text-xs text-base-content/60">
+					{m.kernel_version({ version: kernelVersion || m.loading() })}
+				</p>
 			</div>
 			{#if !confirmReload}
 				<button
@@ -79,7 +79,7 @@
 					onclick={() => (confirmReload = true)}
 				>
 					<RefreshIcon class="size-4" aria-hidden="true" />
-					Reload configuration
+					{m.reload_configuration()}
 				</button>
 			{/if}
 		</div>
@@ -88,10 +88,8 @@
 			<div class="alert alert-warning mt-4 items-start text-sm" role="alert">
 				<DangerTriangleIcon class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
 				<div class="min-w-0">
-					<p class="font-semibold">Reloading configuration is a dangerous operation.</p>
-					<p class="mt-1">
-						It may restart, stop, or reconfigure services and can cause unexpected behavior.
-					</p>
+					<p class="font-semibold">{m.reload_danger_title()}</p>
+					<p class="mt-1">{m.reload_danger_description()}</p>
 					<div class="mt-3 flex flex-wrap gap-2">
 						<button
 							class="btn btn-warning btn-sm"
@@ -102,7 +100,7 @@
 								onReload();
 							}}
 						>
-							{busy ? 'Reloading…' : 'Reload now'}
+							{busy ? m.reloading() : m.reload_now()}
 						</button>
 						<button
 							class="btn btn-ghost btn-sm"
@@ -110,7 +108,7 @@
 							disabled={busy}
 							onclick={() => (confirmReload = false)}
 						>
-							Cancel
+							{m.cancel()}
 						</button>
 					</div>
 				</div>
@@ -118,5 +116,5 @@
 		{/if}
 	</section>
 
-	<a class="btn btn-error w-full" href="/pages/logout.html">Logout</a>
+	<a class="btn btn-error w-full" href="/pages/logout.html">{m.logout()}</a>
 </div>

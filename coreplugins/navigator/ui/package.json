@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check": "npm run locale:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "locale:compile": "node ./scripts/compile-locale.mjs",
     "dev": "vite dev"
+  },
+  "devDependencies": {
+    "@inlang/paraglide-js": "^2.23.0"
   }
 }

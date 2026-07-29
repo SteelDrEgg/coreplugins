@@ -1,16 +1,15 @@
 <script lang="ts">
 	import CogFourIcon from '@iconify-svelte/mynaui/cog-four';
+	import * as m from '$lib/paraglide/messages.js';
+	import type { Locale } from '$lib/paraglide/runtime.js';
 	import {
 		loadKernelVersion,
 		loadNavigatorConfig,
 		reloadKernel,
 		saveNavigatorConfig
 	} from '$lib/utils/api';
-	import type {
-		BannerMessage,
-		LanguageDefinition,
-		NavigatorConfig
-	} from '$lib/utils/types';
+	import type { AvailableLanguage } from '$lib/utils/locale';
+	import type { BannerMessage, NavigatorConfig } from '$lib/utils/types';
 	import GeneralSettings from './GeneralSettings.svelte';
 	import NavigatorSettings from './NavigatorSettings.svelte';
 
@@ -18,16 +17,14 @@
 		darkTheme,
 		selectedLanguage,
 		languages,
-		languageDefinitions,
 		config,
 		onThemeChange,
 		onLanguageChange,
 		onConfigSaved
 	}: {
 		darkTheme: boolean;
-		selectedLanguage: string;
-		languages: string[];
-		languageDefinitions: Record<string, LanguageDefinition>;
+		selectedLanguage: Locale;
+		languages: AvailableLanguage[];
 		config: NavigatorConfig;
 		onThemeChange: (enabled: boolean) => void;
 		onLanguageChange: (language: string) => void;
@@ -54,7 +51,7 @@
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : 'Failed to load Kernel version'
+				text: error instanceof Error ? error.message : m.failed_load_kernel_version()
 			};
 		}
 	}
@@ -65,7 +62,7 @@
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : 'Failed to load Navigator settings'
+				text: error instanceof Error ? error.message : m.failed_load_navigator_settings()
 			};
 		}
 	}
@@ -79,7 +76,7 @@
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : 'Failed to reload configuration'
+				text: error instanceof Error ? error.message : m.failed_reload_configuration()
 			};
 		} finally {
 			busy = false;
@@ -92,11 +89,11 @@
 		try {
 			const saved = await saveNavigatorConfig(next);
 			onConfigSaved(saved);
-			message = { kind: 'success', text: 'Navigator settings saved' };
+			message = { kind: 'success', text: m.navigator_settings_saved() };
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : 'Failed to save Navigator settings'
+				text: error instanceof Error ? error.message : m.failed_save_navigator_settings()
 			};
 		} finally {
 			busy = false;
@@ -115,10 +112,10 @@
 	<div class="modal-box max-h-[90vh] max-w-2xl overflow-y-auto">
 		<div class="mb-4 flex items-center gap-3">
 			<CogFourIcon class="size-6" aria-hidden="true" />
-			<h2 class="text-lg font-semibold" id="settings-title">Settings</h2>
+			<h2 class="text-lg font-semibold" id="settings-title">{m.settings()}</h2>
 		</div>
 
-		<div class="tabs tabs-border mb-5" role="tablist" aria-label="Settings sections">
+		<div class="tabs tabs-border mb-5" role="tablist" aria-label={m.settings_sections()}>
 			<button
 				class:tab-active={activeTab === 'general'}
 				class="tab"
@@ -127,7 +124,7 @@
 				aria-selected={activeTab === 'general'}
 				onclick={() => (activeTab = 'general')}
 			>
-				General
+				{m.general()}
 			</button>
 			<button
 				class:tab-active={activeTab === 'navigator'}
@@ -137,7 +134,7 @@
 				aria-selected={activeTab === 'navigator'}
 				onclick={() => (activeTab = 'navigator')}
 			>
-				Navigator
+				{m.navigator()}
 			</button>
 		</div>
 
@@ -156,7 +153,6 @@
 				{darkTheme}
 				{selectedLanguage}
 				{languages}
-				{languageDefinitions}
 				{kernelVersion}
 				{busy}
 				{onThemeChange}
@@ -169,11 +165,11 @@
 
 		<div class="modal-action">
 			<form method="dialog">
-				<button class="btn" type="submit" disabled={busy}>Close</button>
+				<button class="btn" type="submit" disabled={busy}>{m.close()}</button>
 			</form>
 		</div>
 	</div>
 	<form class="modal-backdrop" method="dialog">
-		<button aria-label="Close settings">close</button>
+		<button aria-label={m.close_settings()}>{m.close()}</button>
 	</form>
 </dialog>

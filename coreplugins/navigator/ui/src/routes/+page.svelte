@@ -3,28 +3,23 @@
 	import NavigatorSidebar from '$lib/components/NavigatorSidebar.svelte';
 	import ServiceViewport from '$lib/components/ServiceViewport.svelte';
 	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
+	import * as m from '$lib/paraglide/messages.js';
+	import type { Locale } from '$lib/paraglide/runtime.js';
 	import { loadEntries, loadNavigatorConfig } from '$lib/utils/api';
 	import {
-		getLanguage,
-		getTheme,
-		setLanguage,
-		setTheme,
-		subscribePreferences
-	} from '$lib/utils/preferences';
-	import type {
-		EntriesPayload,
-		LanguageDefinition,
-		NavigationEntry,
-		NavigatorConfig
-	} from '$lib/utils/types';
+		applyDocumentLocale,
+		availableLanguages,
+		changeLocale,
+		currentLocale
+	} from '$lib/utils/locale';
+	import { getTheme, setTheme, subscribeTheme } from '$lib/utils/preferences';
+	import type { EntriesPayload, NavigationEntry, NavigatorConfig } from '$lib/utils/types';
 
 	let entries: NavigationEntry[] = $state([]);
 	let activeID = $state('');
 	let openedIDs: string[] = $state([]);
 	let loadedIDs: string[] = $state([]);
-	let languages: string[] = $state(['en']);
-	let languageDefinitions: Record<string, LanguageDefinition> = $state({});
-	let selectedLanguage = $state('en');
+	let selectedLanguage: Locale = $state(currentLocale());
 	let darkTheme = $state(false);
 	let loadingEntries = $state(true);
 	let message = $state('');
@@ -50,21 +45,11 @@
 		if (!loadedIDs.includes(id)) loadedIDs = [...loadedIDs, id];
 	}
 
-	function normalizeSelectedLanguage(candidate: string): string {
-		const normalized = candidate.trim().toLowerCase();
-		if (languages.includes(normalized)) return normalized;
-		const browserLanguage = navigator.language.toLowerCase().split('-')[0];
-		if (languages.includes(browserLanguage)) return browserLanguage;
-		return languages[0] || 'en';
-	}
-
-	function applyLanguage(candidate: string) {
-		selectedLanguage = normalizeSelectedLanguage(candidate);
-		document.documentElement.lang = selectedLanguage;
-	}
-
 	function changeLanguage(candidate: string) {
-		applyLanguage(setLanguage(normalizeSelectedLanguage(candidate)));
+		const language = availableLanguages.find(({ code }) => code === candidate);
+		if (!language || language.code === selectedLanguage) return;
+		selectedLanguage = language.code;
+		void changeLocale(language.code);
 	}
 
 	function changeTheme(enabled: boolean) {
@@ -73,24 +58,11 @@
 
 	function applyEntries(payload: EntriesPayload) {
 		entries = payload.entries;
-		languages = payload.languages.map((language) => language.toLowerCase());
 		openedIDs = openedIDs.filter((id) => entries.some((entry) => entry.id === id));
 		loadedIDs = loadedIDs.filter((id) => entries.some((entry) => entry.id === id));
 		if (!entries.some((entry) => entry.id === activeID)) activeID = entries[0]?.id || '';
 		if (activeID && !openedIDs.includes(activeID)) openedIDs = [...openedIDs, activeID];
-		applyLanguage(getLanguage());
-		if (entries.length === 0) message = 'No accessible services expose an entry route.';
-	}
-
-	async function fetchLanguageDefinitions() {
-		try {
-			const response = await fetch('/assets/js/lang.json', { credentials: 'include' });
-			if (response.ok) {
-				languageDefinitions = (await response.json()) as Record<string, LanguageDefinition>;
-			}
-		} catch {
-			languageDefinitions = {};
-		}
+		if (entries.length === 0) message = m.no_accessible_services();
 	}
 
 	async function refresh() {
@@ -99,7 +71,7 @@
 		try {
 			applyEntries(await loadEntries());
 		} catch (error) {
-			message = error instanceof Error ? error.message : 'Failed to load navigation entries.';
+			message = error instanceof Error ? error.message : m.failed_load_navigation();
 		} finally {
 			loadingEntries = false;
 		}
@@ -111,9 +83,8 @@
 			loadNavigatorConfig()
 				.then((config) => (navigatorConfig = config))
 				.catch((error) => {
-					message = error instanceof Error ? error.message : 'Failed to load Navigator settings.';
-				}),
-			fetchLanguageDefinitions()
+					message = error instanceof Error ? error.message : m.failed_load_navigator_settings();
+				})
 		]);
 	}
 
@@ -123,14 +94,13 @@
 	}
 
 	onMount(() => {
+		selectedLanguage = currentLocale();
+		applyDocumentLocale();
 		darkTheme = setTheme(getTheme()) === 'dark';
 		void initialize();
-		const unsubscribe = subscribePreferences(
-			(theme) => {
-				darkTheme = setTheme(theme) === 'dark';
-			},
-			(language) => applyLanguage(language)
-		);
+		const unsubscribe = subscribeTheme((theme) => {
+			darkTheme = setTheme(theme) === 'dark';
+		});
 		const resize = () => {
 			if (window.innerWidth > 768) mobileOpen = false;
 		};
@@ -143,8 +113,8 @@
 </script>
 
 <svelte:head>
-	<title>Arupa</title>
-	<meta name="description" content="Navigate Arupa services" />
+	<title>{m.page_title()}</title>
+	<meta name="description" content={m.page_description()} />
 </svelte:head>
 
 <div
@@ -177,8 +147,7 @@
 	bind:this={settingsDialog}
 	{darkTheme}
 	{selectedLanguage}
-	{languages}
-	{languageDefinitions}
+	languages={availableLanguages}
 	config={navigatorConfig}
 	onThemeChange={changeTheme}
 	onLanguageChange={changeLanguage}

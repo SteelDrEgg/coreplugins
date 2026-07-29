@@ -4,6 +4,7 @@
 	import GripVerticalIcon from '@iconify-svelte/mynaui/grip-vertical';
 	import PlusIcon from '@iconify-svelte/mynaui/plus';
 	import TrashIcon from '@iconify-svelte/mynaui/trash';
+	import * as m from '$lib/paraglide/messages.js';
 	import type { NavigatorConfig } from '$lib/utils/types';
 	import BrandIcon from './BrandIcon.svelte';
 
@@ -78,9 +79,9 @@
 
 <div class="space-y-5">
 	<label class="grid gap-2">
-		<span class="font-medium">Brand icon URL</span>
+		<span class="font-medium">{m.brand_icon_url()}</span>
 		<span class="text-xs text-base-content/60">
-			Absolute and cross-origin URLs are supported. Leave blank to use /Arupa.svg.
+			{m.brand_icon_help()}
 		</span>
 		<div class="flex items-center gap-3">
 			<div class="grid size-11 shrink-0 place-items-center rounded-lg border border-base-300 bg-white p-2">
@@ -90,7 +91,7 @@
 				class="input min-w-0 flex-1 font-mono text-xs"
 				type="text"
 				inputmode="url"
-				placeholder="/Arupa.svg or https://…"
+				placeholder={m.brand_icon_placeholder()}
 				bind:value={icon}
 				disabled={busy}
 			/>
@@ -99,9 +100,9 @@
 
 	<section aria-labelledby="service-order-heading">
 		<div class="mb-2">
-			<h3 class="font-medium" id="service-order-heading">Service order</h3>
+			<h3 class="font-medium" id="service-order-heading">{m.service_order()}</h3>
 			<p class="text-xs text-base-content/60">
-				Add service names, then drag the blocks or use the arrow buttons to reorder them.
+				{m.service_order_help()}
 			</p>
 		</div>
 
@@ -114,21 +115,21 @@
 		>
 			<input
 				class="input min-w-0 flex-1"
-				placeholder="service name"
-				aria-label="Service name"
+				placeholder={m.service_name()}
+				aria-label={m.service_name()}
 				bind:value={newName}
 				disabled={busy}
 			/>
 			<button class="btn btn-primary" type="submit" disabled={busy || !newName.trim()}>
 				<PlusIcon class="size-4" aria-hidden="true" />
-				Add
+				{m.add()}
 			</button>
 		</form>
 
 		<div class="grid gap-2" role="list" aria-live="polite">
 			{#if order.length === 0}
 				<div class="rounded-lg border border-dashed border-base-300 p-6 text-center text-sm text-base-content/50">
-					No explicit order. Services will be sorted by display name.
+					{m.no_explicit_order()}
 				</div>
 			{:else}
 				{#each order as name, index (name)}
@@ -154,8 +155,8 @@
 						<button
 							class="btn btn-square btn-ghost btn-xs"
 							type="button"
-							title="Move up"
-							aria-label={`Move ${name} up`}
+							title={m.move_up()}
+							aria-label={m.move_service_up({ name })}
 							disabled={busy || index === 0}
 							onclick={() => move(name, -1)}
 						>
@@ -164,8 +165,8 @@
 						<button
 							class="btn btn-square btn-ghost btn-xs"
 							type="button"
-							title="Move down"
-							aria-label={`Move ${name} down`}
+							title={m.move_down()}
+							aria-label={m.move_service_down({ name })}
 							disabled={busy || index === order.length - 1}
 							onclick={() => move(name, 1)}
 						>
@@ -174,8 +175,8 @@
 						<button
 							class="btn btn-square btn-ghost btn-xs text-error"
 							type="button"
-							title="Remove"
-							aria-label={`Remove ${name}`}
+							title={m.remove()}
+							aria-label={m.remove_service({ name })}
 							disabled={busy}
 							onclick={() => remove(name)}
 						>
@@ -193,6 +194,6 @@
 		disabled={busy}
 		onclick={() => onsave({ icon: icon.trim() || '/Arupa.svg', order })}
 	>
-		{busy ? 'Saving…' : 'Save Navigator settings'}
+		{busy ? m.saving() : m.save_navigator_settings()}
 	</button>
 </div>

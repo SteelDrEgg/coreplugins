@@ -15,10 +15,9 @@ const (
 )
 
 type navigatorConfig struct {
-	Icon      string
-	Order     []string
-	Ignore    map[string]struct{}
-	Languages []string
+	Icon   string
+	Order  []string
+	Ignore map[string]struct{}
 }
 
 type navigatorConfigUpdate struct {
@@ -27,17 +26,6 @@ type navigatorConfigUpdate struct {
 }
 
 func parseNavigatorConfig(params map[string]string) navigatorConfig {
-	languages := splitList(params["i18n"])
-	if len(languages) == 0 {
-		languages = splitList(params["languages"])
-	}
-	if len(languages) == 0 {
-		languages = []string{"en"}
-	}
-	for index := range languages {
-		languages[index] = strings.ToLower(languages[index])
-	}
-
 	ignore := make(map[string]struct{})
 	for _, name := range splitList(params["ignore"]) {
 		ignore[name] = struct{}{}
@@ -49,10 +37,9 @@ func parseNavigatorConfig(params map[string]string) navigatorConfig {
 	}
 
 	return navigatorConfig{
-		Icon:      icon,
-		Order:     splitList(params[orderParamKey]),
-		Ignore:    ignore,
-		Languages: languages,
+		Icon:   icon,
+		Order:  splitList(params[orderParamKey]),
+		Ignore: ignore,
 	}
 }
 
@@ -79,10 +66,9 @@ func normalizeList(values []string) []string {
 
 func cloneNavigatorConfig(config navigatorConfig) navigatorConfig {
 	cloned := navigatorConfig{
-		Icon:      config.Icon,
-		Order:     append([]string(nil), config.Order...),
-		Ignore:    make(map[string]struct{}, len(config.Ignore)),
-		Languages: append([]string(nil), config.Languages...),
+		Icon:   config.Icon,
+		Order:  append([]string(nil), config.Order...),
+		Ignore: make(map[string]struct{}, len(config.Ignore)),
 	}
 	for name := range config.Ignore {
 		cloned.Ignore[name] = struct{}{}
