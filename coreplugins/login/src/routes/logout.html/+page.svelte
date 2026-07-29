@@ -2,6 +2,7 @@
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
 	import ThemeToggle from '$lib/ThemeToggle.svelte';
+	import { locale, messagesFor } from '$lib/locale';
 
 	type ApiResponse = {
 		success?: boolean;
@@ -9,8 +10,17 @@
 
 	let submitting = false;
 	let checkingAuth = true;
-	let message = '';
+	let messageKey: 'success' | 'failed' | 'network' | null = null;
 	let hasError = false;
+	$: messages = messagesFor($locale);
+	$: message =
+		messageKey === 'success'
+			? messages.logout_success
+			: messageKey === 'failed'
+				? messages.logout_failed
+				: messageKey === 'network'
+					? messages.network_error
+					: '';
 
 	onMount(() => {
 		const controller = new AbortController();
@@ -40,7 +50,7 @@
 
 	async function submitLogout() {
 		submitting = true;
-		message = '';
+		messageKey = null;
 		hasError = false;
 
 		try {
@@ -53,15 +63,15 @@
 			const data = (await response.json()) as ApiResponse;
 
 			if (data.success) {
-				message = 'Logged out successfully! Redirecting...';
+				messageKey = 'success';
 				window.setTimeout(() => window.location.assign(`${base}/login.html`), 1000);
 				return;
 			}
 
-			message = 'Unable to sign out. Please try again.';
+			messageKey = 'failed';
 			hasError = true;
 		} catch {
-			message = 'Network error. Please try again.';
+			messageKey = 'network';
 			hasError = true;
 		} finally {
 			submitting = false;
@@ -70,8 +80,8 @@
 </script>
 
 <svelte:head>
-	<title>Logout</title>
-	<meta name="description" content="Sign out of Arupa" />
+	<title>{messages.logout_page_title}</title>
+	<meta name="description" content={messages.logout_page_description} />
 </svelte:head>
 
 <main class="grid min-h-screen place-items-center bg-base-200 px-4 py-8 text-base-content">
@@ -83,7 +93,9 @@
 		<div class="card-body gap-6 p-6 pt-16 text-center sm:p-8 sm:pt-16">
 			<header>
 				<h1 class="text-3xl font-semibold tracking-normal">Arupa</h1>
-				<p class="mt-2 text-base text-base-content/70">Are you sure you want to sign out?</p>
+				<p class="mt-2 text-base text-base-content/70">
+					{messages.sign_out_prompt}
+				</p>
 			</header>
 
 			<div class="grid gap-3">
@@ -95,13 +107,17 @@
 				>
 					{#if submitting || checkingAuth}
 						<span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
-						{submitting ? 'Signing out...' : 'Checking session...'}
+						{submitting
+							? messages.signing_out
+							: messages.checking_session}
 					{:else}
-						Sign Out
+						{messages.sign_out}
 					{/if}
 				</button>
 
-				<a href={`${base}/login.html`} class="btn btn-ghost w-full">Back to Login</a>
+				<a href={`${base}/login.html`} class="btn btn-ghost w-full">
+					{messages.back_to_login}
+				</a>
 			</div>
 
 			{#if message}

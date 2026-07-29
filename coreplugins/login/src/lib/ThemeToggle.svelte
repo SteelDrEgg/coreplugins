@@ -2,6 +2,7 @@
 	import MoonIcon from '@iconify-svelte/mynaui/moon';
 	import SunMediumIcon from '@iconify-svelte/mynaui/sun-medium';
 	import { onMount } from 'svelte';
+	import { locale, messagesFor } from './locale';
 	import {
 		applyTheme,
 		getTheme,
@@ -11,6 +12,7 @@
 	} from './theme';
 
 	let theme: Theme = 'light';
+	$: messages = messagesFor($locale);
 
 	onMount(() => {
 		theme = applyTheme(getTheme());
@@ -28,8 +30,12 @@
 <button
 	type="button"
 	class="btn btn-ghost btn-circle"
-	aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-	title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+	aria-label={theme === 'dark'
+		? messages.switch_to_light_theme
+		: messages.switch_to_dark_theme}
+	title={theme === 'dark'
+		? messages.light_theme
+		: messages.dark_theme}
 	onclick={toggleTheme}
 >
 	{#if theme === 'dark'}
