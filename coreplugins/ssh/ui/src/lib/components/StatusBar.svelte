@@ -27,7 +27,7 @@
 
 <header class="navbar min-h-16 border-b border-base-300 bg-base-100 px-4 shadow-sm">
 	<div class="min-w-0 flex-1">
-		<div class="badge badge-lg badge-ghost min-w-0 max-w-full gap-2 bg-base-200 px-3">
+		<div class="badge badge-lg badge-neutral text-neutral-content min-w-0 max-w-full gap-2 px-3">
 			<span
 				class:error={state === 'error'}
 				class:success={connected}
