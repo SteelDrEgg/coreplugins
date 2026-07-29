@@ -18,6 +18,9 @@
     "build:navigator": "npm run build --workspace @arupa/navigator",
     "check:navigator": "npm run check --workspace @arupa/navigator",
     "dev:navigator": "npm run dev --workspace @arupa/navigator",
+    "build:ssh": "npm run build --workspace @arupa/ssh",
+    "check:ssh": "npm run check --workspace @arupa/ssh",
+    "dev:ssh": "npm run dev --workspace @arupa/ssh",
     "build:servicemanager": "npm run build --workspace @arupa/servicemanager",
     "check:servicemanager": "npm run check --workspace @arupa/servicemanager",
     "dev:servicemanager": "npm run dev --workspace @arupa/servicemanager"
