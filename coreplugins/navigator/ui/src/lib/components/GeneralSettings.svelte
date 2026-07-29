@@ -73,7 +73,7 @@
 			</div>
 			{#if !confirmReload}
 				<button
-					class="btn btn-warning btn-outline btn-sm"
+					class="btn btn-warning btn-sm"
 					type="button"
 					disabled={busy}
 					onclick={() => (confirmReload = true)}
@@ -118,5 +118,5 @@
 		{/if}
 	</section>
 
-	<a class="btn btn-error btn-outline w-full" href="/pages/logout.html">Logout</a>
+	<a class="btn btn-error w-full" href="/pages/logout.html">Logout</a>
 </div>
