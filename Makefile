@@ -8,7 +8,7 @@ DIST_DIR ?= dist
 PLUGIN_DIR_ABS := $(abspath $(PLUGIN_DIR))
 DIST_DIR_ABS := $(abspath $(DIST_DIR))
 
-SERVICES := hello login navigator secret-manager service-manager ssh web-assets
+SERVICES := login navigator secret-manager service-manager web-assets
 
 .PHONY: all plugins clean $(SERVICES) secretmanager servicemanager webassets
 
@@ -24,8 +24,8 @@ define build-service
 		PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 endef
 
-hello:
-	$(call build-service,hello)
+#hello:
+#	$(call build-service,hello)
 
 login:
 	$(call build-service,login)
@@ -39,8 +39,8 @@ secret-manager:
 service-manager:
 	$(call build-service,servicemanager)
 
-ssh:
-	$(call build-service,ssh)
+#ssh:
+#	$(call build-service,ssh)
 
 web-assets:
 	$(call build-service,webassets)
@@ -53,11 +53,11 @@ webassets: web-assets
 
 ## clean: remove package outputs and service build artifacts.
 clean:
-	$(MAKE) -C coreplugins/hello clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	#$(MAKE) -C coreplugins/hello clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 	$(MAKE) -C coreplugins/login clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 	$(MAKE) -C coreplugins/navigator clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 	$(MAKE) -C coreplugins/secretmanager clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 	$(MAKE) -C coreplugins/servicemanager clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
-	$(MAKE) -C coreplugins/ssh clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	#$(MAKE) -C coreplugins/ssh clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 	$(MAKE) -C coreplugins/webassets clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
 	rm -rf "$(DIST_DIR_ABS)" "$(ROOT_DIR)/tmp"
