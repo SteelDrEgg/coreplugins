@@ -5,10 +5,12 @@
 	import {
 		loadKernelVersion,
 		loadNavigatorConfig,
+		loadServerFriendlyName,
 		reloadKernel,
-		saveNavigatorConfig
+		saveNavigatorConfig,
+		saveServerFriendlyName
 	} from '$lib/utils/api';
-	import type { AvailableLanguage } from '$lib/utils/locale';
+	import { locale, type AvailableLanguage } from '$lib/utils/locale';
 	import type { BannerMessage, NavigatorConfig } from '$lib/utils/types';
 	import GeneralSettings from './GeneralSettings.svelte';
 	import NavigatorSettings from './NavigatorSettings.svelte';
@@ -18,17 +20,21 @@
 		selectedLanguage,
 		languages,
 		config,
+		serverFriendlyName,
 		onThemeChange,
 		onLanguageChange,
-		onConfigSaved
+		onConfigSaved,
+		onServerFriendlyNameSaved
 	}: {
 		darkTheme: boolean;
 		selectedLanguage: Locale;
 		languages: AvailableLanguage[];
 		config: NavigatorConfig;
+		serverFriendlyName: string;
 		onThemeChange: (enabled: boolean) => void;
 		onLanguageChange: (language: string) => void;
 		onConfigSaved: (config: NavigatorConfig) => void;
+		onServerFriendlyNameSaved: (name: string) => void;
 	} = $props();
 
 	let dialog: HTMLDialogElement;
@@ -36,6 +42,7 @@
 	let kernelVersion = $state('');
 	let busy = $state(false);
 	let message = $state<BannerMessage | null>(null);
+	let localeOptions = $derived({ locale: $locale });
 
 	export function show() {
 		activeTab = 'general';
@@ -43,6 +50,7 @@
 		dialog.showModal();
 		void refreshVersion();
 		void refreshNavigatorConfig();
+		void refreshServerFriendlyName();
 	}
 
 	async function refreshVersion() {
@@ -51,7 +59,10 @@
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : m.failed_load_kernel_version()
+				text:
+					error instanceof Error
+						? error.message
+						: m.failed_load_kernel_version({}, localeOptions)
 			};
 		}
 	}
@@ -62,7 +73,24 @@
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : m.failed_load_navigator_settings()
+				text:
+					error instanceof Error
+						? error.message
+						: m.failed_load_navigator_settings({}, localeOptions)
+			};
+		}
+	}
+
+	async function refreshServerFriendlyName() {
+		try {
+			onServerFriendlyNameSaved(await loadServerFriendlyName());
+		} catch (error) {
+			message = {
+				kind: 'error',
+				text:
+					error instanceof Error
+						? error.message
+						: m.failed_load_server_friendly_name({}, localeOptions)
 			};
 		}
 	}
@@ -76,7 +104,10 @@
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : m.failed_reload_configuration()
+				text:
+					error instanceof Error
+						? error.message
+						: m.failed_reload_configuration({}, localeOptions)
 			};
 		} finally {
 			busy = false;
@@ -89,11 +120,34 @@
 		try {
 			const saved = await saveNavigatorConfig(next);
 			onConfigSaved(saved);
-			message = { kind: 'success', text: m.navigator_settings_saved() };
+			message = { kind: 'success', text: m.navigator_settings_saved({}, localeOptions) };
 		} catch (error) {
 			message = {
 				kind: 'error',
-				text: error instanceof Error ? error.message : m.failed_save_navigator_settings()
+				text:
+					error instanceof Error
+						? error.message
+						: m.failed_save_navigator_settings({}, localeOptions)
+			};
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function saveFriendlyName(name: string) {
+		busy = true;
+		message = null;
+		try {
+			const saved = await saveServerFriendlyName(name);
+			onServerFriendlyNameSaved(saved);
+			message = { kind: 'success', text: m.server_friendly_name_saved({}, localeOptions) };
+		} catch (error) {
+			message = {
+				kind: 'error',
+				text:
+					error instanceof Error
+						? error.message
+						: m.failed_save_server_friendly_name({}, localeOptions)
 			};
 		} finally {
 			busy = false;
@@ -112,10 +166,16 @@
 	<div class="modal-box max-h-[90vh] max-w-2xl overflow-y-auto">
 		<div class="mb-4 flex items-center gap-3">
 			<CogFourIcon class="size-6" aria-hidden="true" />
-			<h2 class="text-lg font-semibold" id="settings-title">{m.settings()}</h2>
+			<h2 class="text-lg font-semibold" id="settings-title"
+				>{m.settings({}, localeOptions)}</h2
+			>
 		</div>
 
-		<div class="tabs tabs-border mb-5" role="tablist" aria-label={m.settings_sections()}>
+		<div
+			class="tabs tabs-border mb-5"
+			role="tablist"
+			aria-label={m.settings_sections({}, localeOptions)}
+		>
 			<button
 				class:tab-active={activeTab === 'general'}
 				class="tab"
@@ -124,7 +184,7 @@
 				aria-selected={activeTab === 'general'}
 				onclick={() => (activeTab = 'general')}
 			>
-				{m.general()}
+				{m.general({}, localeOptions)}
 			</button>
 			<button
 				class:tab-active={activeTab === 'navigator'}
@@ -134,7 +194,7 @@
 				aria-selected={activeTab === 'navigator'}
 				onclick={() => (activeTab = 'navigator')}
 			>
-				{m.navigator()}
+				{m.navigator({}, localeOptions)}
 			</button>
 		</div>
 
@@ -153,10 +213,12 @@
 				{darkTheme}
 				{selectedLanguage}
 				{languages}
+				{serverFriendlyName}
 				{kernelVersion}
 				{busy}
 				{onThemeChange}
 				{onLanguageChange}
+				onSaveServerFriendlyName={saveFriendlyName}
 				onReload={runReload}
 			/>
 		{:else}
@@ -165,11 +227,11 @@
 
 		<div class="modal-action">
 			<form method="dialog">
-				<button class="btn" type="submit" disabled={busy}>{m.close()}</button>
+				<button class="btn" type="submit" disabled={busy}>{m.close({}, localeOptions)}</button>
 			</form>
 		</div>
 	</div>
 	<form class="modal-backdrop" method="dialog">
-		<button aria-label={m.close_settings()}>{m.close()}</button>
+		<button aria-label={m.close_settings({}, localeOptions)}>{m.close({}, localeOptions)}</button>
 	</form>
 </dialog>

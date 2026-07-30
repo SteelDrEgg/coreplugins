@@ -43,13 +43,18 @@ record after the running record has supplied a valid, accessible entry route.
     [Services.navigator.Params]
       icon = "/Arupa.svg"
       order = "ssh,service-manager,hello"
-      ignore = "navigator"
+      hide = "hello"
+      server-friendly-name = "Lab Server"
 ```
 
 `icon` accepts a local path or an absolute URL, including a cross-origin URL.
-`order` is a comma-separated list of service names. Both values can also be
-edited from the Navigator tab in the settings dialog; changes are persisted
-through the service Params API and take effect immediately.
+`order` and `hide` are comma-separated lists of service names. These values can
+also be edited from the Navigator tab in the settings dialog; changes are
+persisted through the service Params API and take effect immediately.
+
+`server-friendly-name` controls the name shown in the mobile Navigator header
+and defaults to `Arupa`. `GET /usr/server-friendly-name` exposes the current
+name publicly; authenticated users can edit it from the General tab.
 
 The General tab shows the current kernel version and can request a
 configuration reload. Reloading configuration is presented as a dangerous

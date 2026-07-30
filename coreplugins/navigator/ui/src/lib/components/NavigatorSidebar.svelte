@@ -2,6 +2,7 @@
 	import CogFourIcon from '@iconify-svelte/mynaui/cog-four';
 	import SidebarIcon from '@iconify-svelte/mynaui/sidebar';
 	import * as m from '$lib/paraglide/messages.js';
+	import { locale } from '$lib/utils/locale';
 	import type { NavigationEntry } from '$lib/utils/types';
 	import BrandIcon from './BrandIcon.svelte';
 	import MynauiIcon from './MynauiIcon.svelte';
@@ -12,6 +13,7 @@
 		loading,
 		mobileOpen,
 		brandIcon,
+		serverName,
 		onselect,
 		onopen,
 		onclose,
@@ -22,11 +24,14 @@
 		loading: boolean;
 		mobileOpen: boolean;
 		brandIcon: string;
+		serverName: string;
 		onselect: (id: string) => void;
 		onopen: () => void;
 		onclose: () => void;
 		onsettings: () => void;
 	} = $props();
+
+	let localeOptions = $derived({ locale: $locale });
 
 	function iconName(entry: NavigationEntry, active: boolean): string {
 		return (active ? entry.icon_solid || entry.icon : entry.icon) || 'puzzle';
@@ -36,12 +41,12 @@
 <header class="hidden items-center justify-between border-b border-base-300 bg-base-100 px-3 max-md:flex">
 	<div class="flex min-w-0 items-center gap-2 font-semibold">
 		<BrandIcon src={brandIcon} class="size-7 shrink-0" />
-<!--		<span class="truncate">Arupa</span>-->
+		<span class="truncate">{serverName || 'Arupa'}</span>
 	</div>
 	<button
 		class="btn btn-square btn-ghost"
 		type="button"
-		aria-label={m.open_navigation()}
+		aria-label={m.open_navigation({}, localeOptions)}
 		onclick={onopen}
 	>
 		<SidebarIcon height="1.25em" aria-hidden="true" />
@@ -58,11 +63,14 @@
 
 	<nav
 		class="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto px-2 py-3"
-		aria-label={m.service_navigation()}
+		aria-label={m.service_navigation({}, localeOptions)}
 	>
 		{#if loading}
 			<div class="grid min-h-24 place-items-center text-base-content/50">
-				<span class="loading loading-spinner loading-sm" aria-label={m.loading_services()}></span>
+				<span
+					class="loading loading-spinner loading-sm"
+					aria-label={m.loading_services({}, localeOptions)}
+				></span>
 			</div>
 		{:else}
 			{#each entries as entry (entry.id)}
@@ -95,8 +103,8 @@
 		<button
 			class="btn btn-square btn-ghost"
 			type="button"
-			title={m.settings()}
-			aria-label={m.settings()}
+			title={m.settings({}, localeOptions)}
+			aria-label={m.settings({}, localeOptions)}
 			onclick={onsettings}
 		>
 			<CogFourIcon height="1.25em" aria-hidden="true" />
@@ -108,7 +116,7 @@
 	<button
 		class="fixed inset-0 z-30 bg-neutral/40 md:hidden"
 		type="button"
-		aria-label={m.close_navigation()}
+		aria-label={m.close_navigation({}, localeOptions)}
 		onclick={onclose}
 	></button>
 {/if}

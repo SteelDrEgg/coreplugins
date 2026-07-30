@@ -15,6 +15,11 @@ export type EntriesPayload = {
 export type NavigatorConfig = {
 	icon: string;
 	order: string[];
+	hide: string[];
+};
+
+export type ServerFriendlyName = {
+	name: string;
 };
 
 export type LanguageDefinition = {

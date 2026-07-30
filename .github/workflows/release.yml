@@ -8,7 +8,6 @@ on:
     paths:
       - ".github/workflows/release.yml"
       - "Makefile"
-      - "mk/**"
       - "go.mod"
       - "go.sum"
       - "proto/**"
@@ -36,17 +35,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Install protobuf compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-
-      - name: Install protobuf generators
-        run: make tools
-
-      - name: Generate SDK
-        run: make proto
 
 #      - name: Test
 #        run: go test ./...

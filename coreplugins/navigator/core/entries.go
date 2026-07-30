@@ -38,7 +38,7 @@ func (s *navigatorService) navigationEntries(ctx context.Context, user *arupa.Us
 		if record.Name == "" {
 			continue
 		}
-		if _, ignored := config.Ignore[record.Name]; ignored {
+		if _, hidden := config.Hide[record.Name]; hidden {
 			continue
 		}
 		entryRoute, ok := findEntryRoute(record.Routes, user)

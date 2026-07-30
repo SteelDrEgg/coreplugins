@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	navigatorServiceName = "navigator"
-	entriesAPIPath       = "/navigator/api/entries"
-	configAPIPath        = "/navigator/api/config"
+	navigatorServiceName   = "navigator"
+	entriesAPIPath         = "/navigator/api/entries"
+	configAPIPath          = "/navigator/api/config"
+	serverFriendlyNamePath = "/usr/server-friendly-name"
 )
 
 var authenticatedAccess = arupa.AccessPolicy{RequireAuth: true}
@@ -65,6 +66,22 @@ func (s *navigatorService) configure(ctx context.Context) error {
 		{
 			ID: "config-write", TransportID: "http",
 			HTTP: &arupa.HTTPRoute{Method: http.MethodPut, Pattern: configAPIPath, Access: authenticatedAccess},
+		},
+		{
+			ID: "server-friendly-name-read", TransportID: "http",
+			HTTP: &arupa.HTTPRoute{
+				Method:  http.MethodGet,
+				Pattern: serverFriendlyNamePath,
+				Access:  arupa.AccessPolicy{RequireAuth: false},
+			},
+		},
+		{
+			ID: "server-friendly-name-write", TransportID: "http",
+			HTTP: &arupa.HTTPRoute{
+				Method:  http.MethodPut,
+				Pattern: serverFriendlyNamePath,
+				Access:  authenticatedAccess,
+			},
 		},
 		{
 			ID: "pages", TransportID: "pages",

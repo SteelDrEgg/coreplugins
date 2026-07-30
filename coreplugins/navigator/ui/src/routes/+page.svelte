@@ -5,12 +5,12 @@
 	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { Locale } from '$lib/paraglide/runtime.js';
-	import { loadEntries, loadNavigatorConfig } from '$lib/utils/api';
+	import { loadEntries, loadNavigatorConfig, loadServerFriendlyName } from '$lib/utils/api';
 	import {
-		applyDocumentLocale,
 		availableLanguages,
 		changeLocale,
-		currentLocale
+		initializeLocale,
+		locale
 	} from '$lib/utils/locale';
 	import { getTheme, setTheme, subscribeTheme } from '$lib/utils/preferences';
 	import type { EntriesPayload, NavigationEntry, NavigatorConfig } from '$lib/utils/types';
@@ -19,12 +19,14 @@
 	let activeID = $state('');
 	let openedIDs: string[] = $state([]);
 	let loadedIDs: string[] = $state([]);
-	let selectedLanguage: Locale = $state(currentLocale());
+	let selectedLanguage: Locale = $derived($locale);
+	let localeOptions = $derived({ locale: $locale });
 	let darkTheme = $state(false);
 	let loadingEntries = $state(true);
 	let message = $state('');
 	let mobileOpen = $state(false);
-	let navigatorConfig: NavigatorConfig = $state({ icon: '/Arupa.svg', order: [] });
+	let navigatorConfig: NavigatorConfig = $state({ icon: '/Arupa.svg', order: [], hide: [] });
+	let serverFriendlyName = $state('Arupa');
 	let settingsDialog: { show: () => void };
 
 	let openedEntries = $derived(
@@ -48,8 +50,7 @@
 	function changeLanguage(candidate: string) {
 		const language = availableLanguages.find(({ code }) => code === candidate);
 		if (!language || language.code === selectedLanguage) return;
-		selectedLanguage = language.code;
-		void changeLocale(language.code);
+		changeLocale(language.code);
 	}
 
 	function changeTheme(enabled: boolean) {
@@ -62,7 +63,7 @@
 		loadedIDs = loadedIDs.filter((id) => entries.some((entry) => entry.id === id));
 		if (!entries.some((entry) => entry.id === activeID)) activeID = entries[0]?.id || '';
 		if (activeID && !openedIDs.includes(activeID)) openedIDs = [...openedIDs, activeID];
-		if (entries.length === 0) message = m.no_accessible_services();
+		if (entries.length === 0) message = m.no_accessible_services({}, localeOptions);
 	}
 
 	async function refresh() {
@@ -71,7 +72,8 @@
 		try {
 			applyEntries(await loadEntries());
 		} catch (error) {
-			message = error instanceof Error ? error.message : m.failed_load_navigation();
+			message =
+				error instanceof Error ? error.message : m.failed_load_navigation({}, localeOptions);
 		} finally {
 			loadingEntries = false;
 		}
@@ -83,8 +85,14 @@
 			loadNavigatorConfig()
 				.then((config) => (navigatorConfig = config))
 				.catch((error) => {
-					message = error instanceof Error ? error.message : m.failed_load_navigator_settings();
-				})
+					message =
+						error instanceof Error
+							? error.message
+							: m.failed_load_navigator_settings({}, localeOptions);
+				}),
+			loadServerFriendlyName()
+				.then((name) => (serverFriendlyName = name))
+				.catch(() => (serverFriendlyName = 'Arupa'))
 		]);
 	}
 
@@ -93,9 +101,12 @@
 		void refresh();
 	}
 
+	function serverFriendlyNameSaved(name: string) {
+		serverFriendlyName = name || 'Arupa';
+	}
+
 	onMount(() => {
-		selectedLanguage = currentLocale();
-		applyDocumentLocale();
+		const disconnectLocale = initializeLocale();
 		darkTheme = setTheme(getTheme()) === 'dark';
 		void initialize();
 		const unsubscribe = subscribeTheme((theme) => {
@@ -106,6 +117,7 @@
 		};
 		window.addEventListener('resize', resize);
 		return () => {
+			disconnectLocale();
 			unsubscribe();
 			window.removeEventListener('resize', resize);
 		};
@@ -113,8 +125,8 @@
 </script>
 
 <svelte:head>
-	<title>{m.page_title()}</title>
-	<meta name="description" content={m.page_description()} />
+	<title>{m.page_title({}, localeOptions)}</title>
+	<meta name="description" content={m.page_description({}, localeOptions)} />
 </svelte:head>
 
 <div
@@ -126,6 +138,7 @@
 		loading={loadingEntries}
 		{mobileOpen}
 		brandIcon={navigatorConfig.icon}
+		serverName={serverFriendlyName}
 		onselect={selectEntry}
 		onopen={() => (mobileOpen = true)}
 		onclose={() => (mobileOpen = false)}
@@ -149,7 +162,9 @@
 	{selectedLanguage}
 	languages={availableLanguages}
 	config={navigatorConfig}
+	{serverFriendlyName}
 	onThemeChange={changeTheme}
 	onLanguageChange={changeLanguage}
 	onConfigSaved={configSaved}
+	onServerFriendlyNameSaved={serverFriendlyNameSaved}
 />

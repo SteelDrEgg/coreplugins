@@ -1,5 +1,5 @@
 import * as m from '$lib/paraglide/messages.js';
-import type { EntriesPayload, NavigatorConfig } from './types';
+import type { EntriesPayload, NavigatorConfig, ServerFriendlyName } from './types';
 
 type APIResponse<T> = {
 	success?: boolean;
@@ -67,7 +67,8 @@ export async function loadNavigatorConfig(): Promise<NavigatorConfig> {
 	const data = requiredData(payload, m.navigator_settings_no_data());
 	return {
 		icon: typeof data.icon === 'string' && data.icon.trim() ? data.icon : '/Arupa.svg',
-		order: Array.isArray(data.order) ? data.order.filter((name) => typeof name === 'string') : []
+		order: Array.isArray(data.order) ? data.order.filter((name) => typeof name === 'string') : [],
+		hide: Array.isArray(data.hide) ? data.hide.filter((name) => typeof name === 'string') : []
 	};
 }
 
@@ -79,8 +80,24 @@ export async function saveNavigatorConfig(config: NavigatorConfig): Promise<Navi
 	const data = requiredData(payload, m.saved_navigator_settings_no_data());
 	return {
 		icon: typeof data.icon === 'string' && data.icon.trim() ? data.icon : '/Arupa.svg',
-		order: Array.isArray(data.order) ? data.order.filter((name) => typeof name === 'string') : []
+		order: Array.isArray(data.order) ? data.order.filter((name) => typeof name === 'string') : [],
+		hide: Array.isArray(data.hide) ? data.hide.filter((name) => typeof name === 'string') : []
 	};
+}
+
+export async function loadServerFriendlyName(): Promise<string> {
+	const payload = await request<ServerFriendlyName>('/usr/server-friendly-name');
+	const data = requiredData(payload, m.server_friendly_name_no_data());
+	return typeof data.name === 'string' && data.name.trim() ? data.name.trim() : 'Arupa';
+}
+
+export async function saveServerFriendlyName(name: string): Promise<string> {
+	const payload = await request<ServerFriendlyName>('/usr/server-friendly-name', {
+		method: 'PUT',
+		body: JSON.stringify({ name })
+	});
+	const data = requiredData(payload, m.server_friendly_name_no_data());
+	return typeof data.name === 'string' && data.name.trim() ? data.name.trim() : 'Arupa';
 }
 
 export async function loadKernelVersion(): Promise<string> {
