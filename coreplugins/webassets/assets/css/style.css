@@ -22,7 +22,13 @@ body.dark {
     }
 
 
-    .badge:not(.badge-neutral) {
+    .badge.badge-primary,
+    .badge.badge-secondary,
+    .badge.badge-accent,
+    .badge.badge-info,
+    .badge.badge-success,
+    .badge.badge-warning,
+    .badge.badge-error {
         color: var(--badge-color, var(--color-base-content));
         border-color: currentColor;
         background-color: color-mix(in oklab, var(--badge-color, var(--color-base-content)) 8%, var(--color-base-100));
@@ -37,10 +43,15 @@ body.dark {
         color: var(--alert-color);
         box-shadow: none;
     }
+
+    *::selection {
+        background: var(--color-primary);
+    }
 }
 
 input,
 select,
-textarea {
+textarea,
+label {
     outline: none
 }
