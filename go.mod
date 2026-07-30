@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	filippo.io/age v1.3.1
-	github.com/SteelDrEgg/arupa-sdk/golang v0.4.1
+	github.com/SteelDrEgg/arupa-sdk/golang v0.4.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kevinburke/ssh_config v1.4.0
