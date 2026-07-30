@@ -6,4 +6,3 @@ export const paraglideOptions = {
 	strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
 	localStorageKey: 'arupa.language'
 };
-w
