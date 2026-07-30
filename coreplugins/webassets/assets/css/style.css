@@ -1,0 +1,57 @@
+body.dark {
+    .btn.btn-primary {
+        color: var(--color-primary-content);
+        --btn-border: oklab(from var(--color-primary-content) l a b / 0.08);
+        --btn-bg: oklab(from var(--color-primary-content) l a b / 0.2);
+        /*--btn-border: color-mix(in oklab, var(--color-primary-content) 8%, var(var(--color-base-100)));*/
+        /*--btn-bg: color-mix(in oklab, var(--color-primary-content) 20%, var(var(--color-base-100)));*/
+    }
+
+    .btn.btn-primary:hover {
+        color: oklab(from var(--color-primary-content) l a b / 0.8);
+        --btn-bg: oklab(from var(--color-primary-content) l a b / 0.15);
+        /*color: color-mix(in oklab, var(--color-primary-content) 80%, var(var(--color-base-100)));*/
+        /*--btn-bg: color-mix(in oklab, var(--color-primary-content) 15%, var(var(--color-base-100)));*/
+    }
+
+    .btn.btn-primary:disabled {
+        color: oklab(from var(--color-primary-content) l a b / 0.5);
+        background: oklab(from var(--color-primary-content) l a b / 0.1);
+        /*color: color-mix(in oklab, var(--color-primary-content) 50%, var(--color-base-100));*/
+        /*--btn-border: color-mix(in oklab, var(--color-primary-content) 8%, var(var(--color-base-100)));*/
+    }
+
+
+    .badge.badge-primary,
+    .badge.badge-secondary,
+    .badge.badge-accent,
+    .badge.badge-info,
+    .badge.badge-success,
+    .badge.badge-warning,
+    .badge.badge-error {
+        color: var(--badge-color, var(--color-base-content));
+        border-color: currentColor;
+        background-color: color-mix(in oklab, var(--badge-color, var(--color-base-content)) 8%, var(--color-base-100));
+    }
+
+    .alert {
+        --alert-border-color:
+                color-mix(in oklab, var(--alert-color, var(--color-base-content)) 10%, var(--color-base-100));
+        background:
+                color-mix(in oklab, var(--alert-color, var(--color-base-content)) 8%, var(--color-base-100));
+        border-color: currentColor;
+        color: var(--alert-color);
+        box-shadow: none;
+    }
+
+    *::selection {
+        background: var(--color-primary);
+    }
+}
+
+input,
+select,
+textarea,
+label {
+    outline: none
+}

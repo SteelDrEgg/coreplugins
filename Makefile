@@ -1,65 +1,63 @@
-GOBIN := $(shell go env GOPATH)/bin
-PROTOC_GEN_GO_PLUGIN := $(GOBIN)/protoc-gen-go-plugin
+ROOT_DIR := $(CURDIR)
 
+# PLUGIN_DIR is the directory containing the final .plg packages.  DIST_DIR
+# contains binaries and temporary package directories used while building.
 PLUGIN_DIR ?= plugins
 DIST_DIR ?= dist
 
-CORE_PLUGIN_TARGETS := hello web-assets login navigator plugin-manager secret-manager ssh web-sdk
+PLUGIN_DIR_ABS := $(abspath $(PLUGIN_DIR))
+DIST_DIR_ABS := $(abspath $(DIST_DIR))
 
-.PHONY: tools proto proto-grpc proto-wasm plugins $(CORE_PLUGIN_TARGETS) clean
+SERVICES := login navigator secret-manager service-manager web-assets
 
-## tools: install the protobuf generators used by `make proto`
-tools:
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	go install github.com/knqyf263/go-plugin/cmd/protoc-gen-go-plugin@v0.9.0
+.PHONY: all plugins clean $(SERVICES) secretmanager servicemanager webassets
 
-## proto: regenerate gRPC and WASM Go code from proto/panel.proto
-proto: proto-grpc proto-wasm
+all: plugins
 
-proto-grpc:
-	mkdir -p pluginsdk/grpc
-	PATH="$(GOBIN):$(PATH)" protoc -I. \
-		--go_out=./pluginsdk/grpc --go_opt=paths=source_relative \
-		--go-grpc_out=./pluginsdk/grpc --go-grpc_opt=paths=source_relative \
-		./proto/panel.proto
+## plugins: build every service under coreplugins/.
+plugins: $(SERVICES)
 
-proto-wasm:
-	mkdir -p pluginsdk/wasm
-	protoc --plugin=protoc-gen-go-plugin=$(PROTOC_GEN_GO_PLUGIN) -I. \
-		--go-plugin_out=./pluginsdk/wasm --go-plugin_opt=paths=source_relative \
-		./proto/panel.proto
+define build-service
+	$(MAKE) -C coreplugins/$(1) package \
+		ROOT_DIR="$(ROOT_DIR)" \
+		DIST_DIR="$(DIST_DIR_ABS)" \
+		PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+endef
 
-## plugins: build and package every core plugin into plugins/*.plg
-plugins: proto $(CORE_PLUGIN_TARGETS)
-
-$(CORE_PLUGIN_TARGETS): proto
-
-hello:
-	$(MAKE) -C coreplugins/hello package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
-
-web-sdk:
-	$(MAKE) -C coreplugins/websdk package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
-
-web-assets:
-	$(MAKE) -C coreplugins/webassets package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+#hello:
+#	$(call build-service,hello)
 
 login:
-	$(MAKE) -C coreplugins/login package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+	$(call build-service,login)
 
 navigator:
-	$(MAKE) -C coreplugins/navigator package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
-
-plugin-manager:
-	$(MAKE) -C coreplugins/pluginmanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+	$(call build-service,navigator)
 
 secret-manager:
-	$(MAKE) -C coreplugins/secretmanager package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+	$(call build-service,secretmanager)
 
-ssh:
-	$(MAKE) -C coreplugins/ssh package ROOT_DIR=$(CURDIR) DIST_DIR=$(CURDIR)/$(DIST_DIR) PLUGIN_DIR=$(CURDIR)/$(PLUGIN_DIR)
+service-manager:
+	$(call build-service,servicemanager)
 
-## clean: remove build artifacts
+#ssh:
+#	$(call build-service,ssh)
+
+web-assets:
+	$(call build-service,webassets)
+
+# Directory-name aliases are useful when invoking make from the repository
+# root, while the canonical targets above follow the package names in info.yaml.
+secretmanager: secret-manager
+servicemanager: service-manager
+webassets: web-assets
+
+## clean: remove package outputs and service build artifacts.
 clean:
-	rm -rf $(DIST_DIR) tmp
-	rm -f $(PLUGIN_DIR)/hello.plg $(PLUGIN_DIR)/web-assets.plg $(PLUGIN_DIR)/login.plg $(PLUGIN_DIR)/navigator.plg $(PLUGIN_DIR)/plugin-manager.plg $(PLUGIN_DIR)/secret-manager.plg $(PLUGIN_DIR)/ssh.plg
+	#$(MAKE) -C coreplugins/hello clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	$(MAKE) -C coreplugins/login clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	$(MAKE) -C coreplugins/navigator clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	$(MAKE) -C coreplugins/secretmanager clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	$(MAKE) -C coreplugins/servicemanager clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	#$(MAKE) -C coreplugins/ssh clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	$(MAKE) -C coreplugins/webassets clean ROOT_DIR="$(ROOT_DIR)" DIST_DIR="$(DIST_DIR_ABS)" PLUGIN_DIR="$(PLUGIN_DIR_ABS)"
+	rm -rf "$(DIST_DIR_ABS)" "$(ROOT_DIR)/tmp"

@@ -1,0 +1,10 @@
+version: 1
+transports:
+  - id: login-pages
+    type: static
+    source: build/
+routes:
+  - id: login-pages
+    transport: login-pages
+    http:
+      pattern: /pages/
