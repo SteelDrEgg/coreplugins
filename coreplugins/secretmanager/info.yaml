@@ -5,5 +5,4 @@ ContractVersion: 2
 Command: $PLUGIN_ROOT/secret_manager.wasm
 DisplayName: Secrets
 Category: core
-Entry: /keys/pages/index.html
 Icon: /keys/icon/key.svg
