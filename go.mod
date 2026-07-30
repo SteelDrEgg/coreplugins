@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	filippo.io/age v1.3.1
-	github.com/SteelDrEgg/arupa-sdk/golang v0.3.0
+	github.com/SteelDrEgg/arupa-sdk/golang v0.4.1
 	github.com/gin-gonic/gin v1.10.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kevinburke/ssh_config v1.4.0
@@ -12,7 +12,6 @@ require (
 	golang.org/x/crypto v0.53.0
 )
 
-replace github.com/SteelDrEgg/arupa-sdk/golang => ../arupa-sdk/golang
 
 require (
 	filippo.io/hpke v0.4.0 // indirect
