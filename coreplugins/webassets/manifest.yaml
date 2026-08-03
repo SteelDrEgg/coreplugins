@@ -9,3 +9,6 @@ routes:
     transport: css
     http:
       pattern: /assets/css/
+      rewrite:
+        prefix: true
+        location: true

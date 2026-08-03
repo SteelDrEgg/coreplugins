@@ -8,3 +8,6 @@ routes:
     transport: login-pages
     http:
       pattern: /pages/
+      rewrite:
+        prefix: true
+        location: true

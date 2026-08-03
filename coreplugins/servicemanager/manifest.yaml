@@ -16,6 +16,9 @@ routes:
       pattern: /services/pages/
       access:
         require_auth: true
+      rewrite:
+        prefix: true
+        location: true
   - id: service-manager-icons
     transport: service-manager-icons
     http:
@@ -23,3 +26,6 @@ routes:
       pattern: /services/icon/
       access:
         require_auth: true
+      rewrite:
+        prefix: true
+        location: true

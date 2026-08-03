@@ -76,8 +76,8 @@ func (p *secretManagerPlugin) configure(ctx context.Context) error {
 		{ID: "keys-update", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/update", Access: authenticatedAccess}},
 		{ID: "keys-reveal", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/reveal", Access: authenticatedAccess}},
 		{ID: "keys-delete", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/delete", Access: authenticatedAccess}},
-		{ID: "entry", TransportID: "pages", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/pages/", Access: authenticatedAccess}},
-		{ID: "keys-icon", TransportID: "icon", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/icon/", Access: authenticatedAccess}},
+		{ID: "entry", TransportID: "pages", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/pages/", Access: authenticatedAccess, Rewrite: arupa.RewriteRule{Prefix: true, Location: true}}},
+		{ID: "keys-icon", TransportID: "icon", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/icon/", Access: authenticatedAccess, Rewrite: arupa.RewriteRule{Prefix: true, Location: true}}},
 	})
 	if err := requireRegistration("register HTTP routes", result, err); err != nil {
 		return err
