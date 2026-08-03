@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ThemeToggle from '$lib/ThemeToggle.svelte';
 	import { locale, messagesFor } from '$lib/locale';
+	import { serverName } from '$lib/serverName';
 
 	type LoginResponse = {
 		success?: boolean;
@@ -72,7 +73,7 @@
 
 		<div class="card-body gap-6 p-6 pt-16 sm:p-8 sm:pt-16">
 			<header class="text-center">
-				<h1 class="text-3xl font-semibold tracking-normal">Arupa</h1>
+				<h1 class="text-3xl font-semibold tracking-normal">{$serverName}</h1>
 				<p class="mt-2 text-sm text-base-content/60">{messages.sign_in_prompt}</p>
 			</header>
 

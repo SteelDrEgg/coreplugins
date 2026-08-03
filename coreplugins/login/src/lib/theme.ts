@@ -43,3 +43,8 @@ export function onStoredThemeChange(listener: (theme: Theme) => void): () => voi
 	window.addEventListener('storage', handleStorage);
 	return () => window.removeEventListener('storage', handleStorage);
 }
+
+export function initializeTheme(): () => void {
+	applyTheme(getTheme());
+	return onStoredThemeChange(applyTheme);
+}

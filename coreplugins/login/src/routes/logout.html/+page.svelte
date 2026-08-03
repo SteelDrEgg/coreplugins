@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-	import { onMount } from 'svelte';
 	import ThemeToggle from '$lib/ThemeToggle.svelte';
 	import { locale, messagesFor } from '$lib/locale';
+	import { serverName } from '$lib/serverName';
 
 	type ApiResponse = {
 		success?: boolean;
 	};
 
 	let submitting = false;
-	let checkingAuth = true;
+	let loggedOut = false;
 	let messageKey: 'success' | 'failed' | 'network' | null = null;
 	let hasError = false;
 	$: messages = messagesFor($locale);
@@ -21,32 +21,6 @@
 				: messageKey === 'network'
 					? messages.network_error
 					: '';
-
-	onMount(() => {
-		const controller = new AbortController();
-
-		async function checkAuthentication() {
-			try {
-				const response = await fetch('/api/check-auth', { signal: controller.signal });
-				const data = (await response.json()) as ApiResponse;
-
-				if (!data.success) {
-					window.location.replace(`${base}/login.html`);
-					return;
-				}
-			} catch (error) {
-				if (!(error instanceof DOMException && error.name === 'AbortError')) {
-					window.location.replace(`${base}/login.html`);
-					return;
-				}
-			}
-
-			checkingAuth = false;
-		}
-
-		void checkAuthentication();
-		return () => controller.abort();
-	});
 
 	async function submitLogout() {
 		submitting = true;
@@ -64,7 +38,7 @@
 
 			if (data.success) {
 				messageKey = 'success';
-				window.setTimeout(() => window.location.assign(`${base}/login.html`), 1000);
+				loggedOut = true;
 				return;
 			}
 
@@ -92,32 +66,32 @@
 
 		<div class="card-body gap-6 p-6 pt-16 text-center sm:p-8 sm:pt-16">
 			<header>
-				<h1 class="text-3xl font-semibold tracking-normal">Arupa</h1>
+				<h1 class="text-3xl font-semibold tracking-normal">{$serverName}</h1>
 				<p class="mt-2 text-base text-base-content/70">
 					{messages.sign_out_prompt}
 				</p>
 			</header>
 
 			<div class="grid gap-3">
-				<button
-					type="button"
-					class="btn btn-error w-full"
-					disabled={submitting || checkingAuth}
-					onclick={submitLogout}
-				>
-					{#if submitting || checkingAuth}
-						<span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
-						{submitting
-							? messages.signing_out
-							: messages.checking_session}
-					{:else}
-						{messages.sign_out}
-					{/if}
-				</button>
-
-				<a href={`${base}/login.html`} class="btn btn-ghost w-full">
-					{messages.back_to_login}
-				</a>
+				{#if loggedOut}
+					<a href={`${base}/login.html`} class="btn btn-primary w-full">
+						{messages.back_to_login}
+					</a>
+				{:else}
+					<button
+						type="button"
+						class="btn btn-error w-full"
+						disabled={submitting}
+						onclick={submitLogout}
+					>
+						{#if submitting}
+							<span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+							{messages.signing_out}
+						{:else}
+							{messages.sign_out}
+						{/if}
+					</button>
+				{/if}
 			</div>
 
 			{#if message}

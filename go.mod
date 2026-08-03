@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	filippo.io/age v1.3.1
-	github.com/SteelDrEgg/arupa-sdk/golang v0.4.2
+	github.com/SteelDrEgg/arupa-sdk/golang v0.4.3
 )
 
 //replace github.com/SteelDrEgg/arupa-sdk/golang => ../arupa-sdk/golang

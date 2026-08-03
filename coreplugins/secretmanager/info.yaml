@@ -1,5 +1,5 @@
 Name: secret-manager
-Version: 0.2.0
+Version: 0.2.1
 Type: wasm
 ContractVersion: 2
 Command: $PLUGIN_ROOT/secret_manager.wasm
