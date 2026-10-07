@@ -8,7 +8,7 @@
   "directory_required": "A service directory is required.",
   "directory_saved": "Service directory saved and scanned.",
   "directory_refresh_failed": "Directory saved, but the service list could not be refreshed. Try Refresh.",
-  "temporary_directory": "Temporary directory (ServiceTempDir)",
+  "temporary_directory": "Temp directory",
   "current_temporary_directory": "Current temporary directory",
   "save_temporary_directory": "Save temporary directory",
   "temporary_directory_hint": "Stores extracted service packages and temporary runtime files on the Arupa host. Relative paths use the Kernel's working directory. Saving creates the directory if needed; new service loads use it.",

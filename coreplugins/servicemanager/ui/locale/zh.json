@@ -1,7 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "directory_settings": "目录设置",
-  "temporary_directory": "临时目录（ServiceTempDir）",
+  "temporary_directory": "临时目录",
   "current_temporary_directory": "当前临时目录",
   "save_temporary_directory": "保存临时目录",
   "temporary_directory_hint": "用于在 Arupa 主机上解压服务包和保存临时运行文件。相对路径以内核工作目录为基准，保存时按需创建目录，新加载的服务使用新目录。",
