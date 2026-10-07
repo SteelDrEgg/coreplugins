@@ -5,6 +5,7 @@
 	import { locale } from '$lib/utils/locale';
 	import { getServiceDirectory, updateServiceDirectory } from '$lib/utils/api';
 	import ServiceSettings from './ServiceSettings.svelte';
+	import TempDirectorySettings from './TempDirectorySettings.svelte';
 
 	let { mode, disabled, onclose, onupdated, onbusy }: {
 		mode: 'directory' | 'defaults';
@@ -94,20 +95,24 @@
 		{#if mode === 'defaults'}
 			<ServiceSettings name="default" isDefault {disabled} {onupdated} {onbusy} />
 		{:else}
-			<p class="text-sm text-base-content/60">{m.directory_hint({}, options)}</p>
-			{#if error}<div class="alert alert-error alert-soft" role="alert">{error}</div>{/if}
-			{#if notice}<div class="alert alert-soft {notice === 'directory_refresh_failed' ? 'alert-warning' : 'alert-success'}" role="status">{m[notice]({}, options)}</div>{/if}
-			{#if loading}
-				<p class="flex items-center gap-2 py-4 text-sm" role="status"><span class="loading loading-spinner loading-sm" aria-hidden="true"></span>{m.loading_settings({}, options)}</p>
-			{:else if !ready}
-				<button type="button" class="btn" onclick={loadDirectory}>{m.retry({}, options)}</button>
-			{:else}
-				<dl class="text-sm"><dt class="text-base-content/50">{m.current_directory({}, options)}</dt><dd class="mt-1 break-all font-mono text-xs">{current}</dd></dl>
-				<form onsubmit={saveDirectory} class="space-y-4">
-					<label class="block space-y-2 text-sm"><span class="block">{m.service_directory({}, options)}</span><input class="input w-full font-mono text-sm" type="text" required bind:value={draft} disabled={saving} /></label>
-					<button class="btn" type="submit" disabled={disabled || saving}>{#if saving}<span class="loading loading-spinner loading-xs" aria-hidden="true"></span>{/if}{m.save_directory({}, options)}</button>
-				</form>
-			{/if}
+			<section class="space-y-4" aria-labelledby="service-directory-title">
+				<h3 id="service-directory-title" class="font-semibold">{m.service_directory({}, options)}</h3>
+				<p class="text-sm text-base-content/60">{m.directory_hint({}, options)}</p>
+				{#if error}<div class="alert alert-error alert-soft" role="alert">{error}</div>{/if}
+				{#if notice}<div class="alert alert-soft {notice === 'directory_refresh_failed' ? 'alert-warning' : 'alert-success'}" role="status">{m[notice]({}, options)}</div>{/if}
+				{#if loading}
+					<p class="flex items-center gap-2 py-4 text-sm" role="status"><span class="loading loading-spinner loading-sm" aria-hidden="true"></span>{m.loading_settings({}, options)}</p>
+				{:else if !ready}
+					<button type="button" class="btn" onclick={loadDirectory}>{m.retry({}, options)}</button>
+				{:else}
+					<dl class="text-sm"><dt class="text-base-content/50">{m.current_directory({}, options)}</dt><dd class="mt-1 break-all font-mono text-xs">{current}</dd></dl>
+					<form onsubmit={saveDirectory} class="space-y-4">
+						<label class="block space-y-2 text-sm"><span class="block">{m.service_directory({}, options)}</span><input class="input w-full font-mono text-sm" type="text" required bind:value={draft} disabled={saving} /></label>
+						<button class="btn" type="submit" disabled={disabled || saving}>{#if saving}<span class="loading loading-spinner loading-xs" aria-hidden="true"></span>{/if}{m.save_directory({}, options)}</button>
+					</form>
+				{/if}
+			</section>
+			<TempDirectorySettings {disabled} {onbusy} />
 		{/if}
 	</div>
 	<form method="dialog" class="modal-backdrop"><button>{m.close({}, options)}</button></form>
