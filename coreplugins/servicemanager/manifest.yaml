@@ -13,7 +13,7 @@ routes:
     transport: service-manager-pages
     http:
       method: GET
-      pattern: /services/pages/
+      pattern: /service-manager/pages/
       access:
         require_auth: true
       rewrite:
@@ -23,7 +23,7 @@ routes:
     transport: service-manager-icons
     http:
       method: GET
-      pattern: /services/icon/
+      pattern: /service-manager/icon/
       access:
         require_auth: true
       rewrite:

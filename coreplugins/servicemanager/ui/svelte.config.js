@@ -11,11 +11,11 @@ const config = {
 			strict: true
 		}),
 		paths: {
-			base: '/services/pages'
+			base: '/service-manager/pages'
 		},
 		prerender: {
 			handleHttpError: ({ path, message }) => {
-				if (path === '/assets/css/scheme.css' || path === '/assets/js/sdk.js') return;
+				if (path === '/assets/css/scheme.css') return;
 				throw new Error(message);
 			}
 		}

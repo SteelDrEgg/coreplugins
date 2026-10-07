@@ -3,10 +3,15 @@ import type {
 	RunningService,
 	ServiceAction,
 	ServiceDirectory,
-	ServiceTempDirectory
+	ServiceTempDirectory,
+	ConfigResponse,
+	ConfigPatch,
+	ParamsResponse,
+	ParamsPatch
 } from './types';
 import * as m from '$lib/paraglide/messages.js';
 import { serviceAPIErrorMessages } from './errorMessages';
+import { getLocale } from '$lib/paraglide/runtime.js';
 
 type ApiEnvelope<T> = {
 	success?: boolean;
@@ -47,7 +52,7 @@ function httpError(
 	rawBody: string
 ): ApiError {
 	const knownMessage = serviceAPIErrorMessages[response.status];
-	if (knownMessage) return new ApiError(knownMessage(), response.status, path);
+	if (knownMessage) return new ApiError(knownMessage({}, { locale: getLocale() }), response.status, path);
 
 	const detail = responseMessage(payload, rawBody);
 	const status = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
@@ -55,7 +60,7 @@ function httpError(
 		m.service_api_request_failed({
 			status,
 			detail: detail ? `: ${detail}` : ''
-		}),
+		}, { locale: getLocale() }),
 		response.status,
 		path
 	);
@@ -71,6 +76,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiE
 	const response = await fetch(path, {
 		...options,
 		credentials: 'include',
+		signal: options.signal ?? AbortSignal.timeout(30000),
 		headers
 	});
 
@@ -80,16 +86,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiE
 		if (rawBody.trim()) payload = JSON.parse(rawBody) as ApiEnvelope<T>;
 	} catch {
 		if (!response.ok) throw httpError(response, path, null, rawBody);
-		throw new ApiError(m.service_api_invalid_json(), response.status, path);
+		throw new ApiError(m.service_api_invalid_json({}, { locale: getLocale() }), response.status, path);
 	}
 
 	if (!response.ok) throw httpError(response, path, payload, rawBody);
 	if (!payload) {
-		throw new ApiError(m.service_api_empty_response(), response.status, path);
+		throw new ApiError(m.service_api_empty_response({}, { locale: getLocale() }), response.status, path);
 	}
 	if (!payload.success) {
 		throw new ApiError(
-			payload.message || payload.error || m.service_api_unsuccessful(),
+			payload.message || payload.error || m.service_api_unsuccessful({}, { locale: getLocale() }),
 			response.status,
 			path
 		);
@@ -106,19 +112,19 @@ export async function listDiscoveredServices(): Promise<DiscoveredService[]> {
 	const payload = await request<{ services?: DiscoveredService[] }>(
 		'/api/service/discovered?include=metadata'
 	);
-	const data = requiredData(payload, m.discovered_services_no_data());
+	const data = requiredData(payload, m.discovered_services_no_data({}, { locale: getLocale() }));
 	return Array.isArray(data.services) ? data.services : [];
 }
 
 export async function listRunningServices(): Promise<RunningService[]> {
 	const payload = await request<{ services?: RunningService[] }>('/api/service/running');
-	const data = requiredData(payload, m.running_services_no_data());
+	const data = requiredData(payload, m.running_services_no_data({}, { locale: getLocale() }));
 	return Array.isArray(data.services) ? data.services : [];
 }
 
 export async function getServiceDirectory(): Promise<ServiceDirectory> {
 	const payload = await request<ServiceDirectory>('/api/service/dir');
-	return requiredData(payload, m.service_directory_no_data());
+	return requiredData(payload, m.service_directory_no_data({}, { locale: getLocale() }));
 }
 
 export async function updateServiceDirectory(serviceDir: string): Promise<ServiceDirectory> {
@@ -126,12 +132,12 @@ export async function updateServiceDirectory(serviceDir: string): Promise<Servic
 		method: 'PATCH',
 		body: JSON.stringify({ service_dir: serviceDir })
 	});
-	return requiredData(payload, m.service_directory_no_data());
+	return requiredData(payload, m.service_directory_no_data({}, { locale: getLocale() }));
 }
 
 export async function getServiceTempDirectory(): Promise<ServiceTempDirectory> {
 	const payload = await request<ServiceTempDirectory>('/api/service/temp-dir');
-	return requiredData(payload, m.temporary_directory_no_data());
+	return requiredData(payload, m.temporary_directory_no_data({}, { locale: getLocale() }));
 }
 
 export async function updateServiceTempDirectory(tempDir: string): Promise<ServiceTempDirectory> {
@@ -139,7 +145,7 @@ export async function updateServiceTempDirectory(tempDir: string): Promise<Servi
 		method: 'PATCH',
 		body: JSON.stringify({ temp_dir: tempDir })
 	});
-	return requiredData(payload, m.temporary_directory_no_data());
+	return requiredData(payload, m.temporary_directory_no_data({}, { locale: getLocale() }));
 }
 
 export async function runServiceAction(action: ServiceAction, name: string): Promise<void> {
@@ -147,4 +153,24 @@ export async function runServiceAction(action: ServiceAction, name: string): Pro
 		`/api/service/${action}/${encodeURIComponent(name)}`,
 		{ method: 'POST' }
 	);
+}
+
+export async function getServiceConfig(name: string): Promise<ConfigResponse> {
+	return requiredData(await request<ConfigResponse>(`/api/service/config/${encodeURIComponent(name)}`), m.service_api_empty_response({}, { locale: getLocale() }));
+}
+
+export async function updateServiceConfig(name: string, patch: ConfigPatch): Promise<ConfigResponse> {
+	return requiredData(await request<ConfigResponse>(`/api/service/config/${encodeURIComponent(name)}`, {
+		method: 'PATCH', body: JSON.stringify(patch)
+	}), m.service_api_empty_response({}, { locale: getLocale() }));
+}
+
+export async function getServiceParams(name: string): Promise<ParamsResponse> {
+	return requiredData(await request<ParamsResponse>(`/api/service/params/${encodeURIComponent(name)}`), m.service_api_empty_response({}, { locale: getLocale() }));
+}
+
+export async function updateServiceParams(name: string, patch: ParamsPatch): Promise<ParamsResponse> {
+	return requiredData(await request<ParamsResponse>(`/api/service/params/${encodeURIComponent(name)}`, {
+		method: 'PATCH', body: JSON.stringify(patch)
+	}), m.service_api_empty_response({}, { locale: getLocale() }));
 }

@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
+	"test": "node --test scripts/services.test.ts",
     "build": "npm run locale:compile && vite build",
     "check": "npm run locale:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "locale:compile": "node ./scripts/compile-locale.mjs",

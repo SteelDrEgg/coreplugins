@@ -19,15 +19,9 @@ export function applyTheme(theme: Theme): void {
 }
 
 export function connectTheme(): () => void {
-	const sdk = window.webSDK;
-	if (sdk) {
-		applyTheme(normalizeTheme(sdk.getTheme()));
-		return sdk.onThemeChange((theme) => applyTheme(normalizeTheme(theme)));
-	}
-
 	applyTheme(storedTheme());
 	const handleStorage = (event: StorageEvent) => {
-		if (event.key === 'arupa.theme') applyTheme(normalizeTheme(event.newValue));
+		if (event.key === 'arupa.theme' || event.key === null) applyTheme(storedTheme());
 	};
 	window.addEventListener('storage', handleStorage);
 	return () => window.removeEventListener('storage', handleStorage);

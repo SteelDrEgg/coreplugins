@@ -4,6 +4,7 @@ import {
 	getTextDirection,
 	setLocale,
 	toLocale,
+	baseLocale,
 	type Locale
 } from '$lib/paraglide/runtime.js';
 
@@ -22,7 +23,10 @@ export function initializeLocale(): () => void {
 
 	const handleStorage = (event: StorageEvent) => {
 		if (event.key !== LANGUAGE_STORAGE_KEY && event.key !== null) return;
-		const next = toLocale(event.newValue) ?? getLocale();
+		let stored: string | null = null;
+		try { stored = localStorage.getItem(LANGUAGE_STORAGE_KEY); } catch { /* Use browser language. */ }
+		const preferred = navigator.languages.map((language) => toLocale(language) ?? toLocale(language.split('-')[0])).find((value) => value !== undefined);
+		const next = toLocale(stored) ?? preferred ?? baseLocale;
 		if (next === current) return;
 		current = next;
 		void setLocale(next, { reload: false });
