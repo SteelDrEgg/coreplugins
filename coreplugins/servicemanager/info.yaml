@@ -1,5 +1,5 @@
 Name: service-manager
-Version: dev
+Version: 0.3.0
 Type: static
 ContractVersion: 2
 DisplayName: Services
