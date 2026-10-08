@@ -1,61 +1,62 @@
 # Navigator
 
-Navigate across plugin pages
+A home page for navigating between [Arupa](https://github.com/SteelDrEgg/Arupa)
+services.
 
-Navigator is a WASM service with a Svelte frontend. Its backend builds the
-navigation list from the running service records published in the read-only
-`sys` KV namespace; it does not call the kernel service-management HTTP API.
+Browse accessible service pages and open them from the navigation menu. Customize
+the icon, service order, hidden entries, and server name from the settings dialog.
+The General tab also shows the kernel version and offers configuration reload.
+Reloading configuration may restart, stop, or reconfigure running services.
 
-## Entry route contract
+## Usage
 
-A running service appears in navigation when it exposes exactly one HTTP route
-with:
+Start the `navigator` service, sign in, and open `/`.
 
-- route ID `entry`;
-- method `GET`;
-- a local URL path as its pattern; and
-- an access policy that permits the current authenticated user.
+A running service appears in the menu when it provides exactly one `entry` HTTP
+route using `GET`, with a local URL path and access allowed for the current user.
 
-Only the route's access policy is evaluated by Navigator. The kernel remains
-responsible for enforcing access again when the entry URL is requested.
+## Info
 
-```go
-arupa.Route{
-    ID:          "entry",
-    TransportID: "pages",
-    HTTP: &arupa.HTTPRoute{
-        Method:  http.MethodGet,
-        Pattern: "/example/",
-        Access:  arupa.AccessPolicy{RequireAuth: true},
-    },
-}
+```text
+Name: navigator
+Type: wasm
 ```
 
-Display name and icon metadata are read from the matching service catalog
-record after the running record has supplied a valid, accessible entry route.
+## HTTP Endpoints
 
-## Example config
+| Endpoint | Method | Description | Require auth |
+|----------|--------|-------------|--------------|
+| `/` | `GET` | Entry and bundled page assets | yes |
+| `/navigator/api/entries` | `GET` | List accessible navigation entries | yes |
+| `/navigator/api/config` | `GET`, `PUT` | Read and update navigation settings | yes |
+| `/usr/server-friendly-name` | `GET` | Read the server display name | no |
+| `/usr/server-friendly-name` | `PUT` | Update the server display name | yes |
+
+## Config
 
 ```toml
-  [Services.navigator]
-    Restart = "always"
-    RunAsUser = ""
-    [Services.navigator.Params]
-      icon = "/Arupa.svg"
-      order = "ssh,service-manager,hello"
-      hide = "hello"
-      server-friendly-name = "Lab Server"
+[Services.navigator.Params]
+icon = "/Arupa.svg"
+order = "ssh,service-manager,hello"
+hide = "hello"
+server-friendly-name = "Lab Server"
 ```
 
-`icon` accepts a local path or an absolute URL, including a cross-origin URL.
-`order` and `hide` are comma-separated lists of service names. These values can
-also be edited from the Navigator tab in the settings dialog; changes are
-persisted through the service Params API and take effect immediately.
+`icon` accepts a local path or an absolute URL and defaults to `/Arupa.svg`.
+`order` and `hide` are comma-separated lists of service names. Hiding an entry
+only removes it from the menu; it does not change access permissions.
+`server-friendly-name` defaults to `Arupa` and is shown in the mobile header
+and login pages.
 
-`server-friendly-name` controls the name shown in the mobile Navigator header
-and defaults to `Arupa`. `GET /usr/server-friendly-name` exposes the current
-name publicly; authenticated users can edit it from the General tab.
+Settings saved through the dialog take effect immediately.
 
-The General tab shows the current kernel version and can request a
-configuration reload. Reloading configuration is presented as a dangerous
-operation because it may restart, stop, or reconfigure running services.
+## Build
+
+```sh
+make build
+```
+
+Run from this directory. `make build` produces `dist/navigator.wasm` in the
+repository root and static files in `ui/build/`. `make package` creates
+`plugins/navigator.plg` in the repository root.
+Rescan the service directory and restart the service to load a new build.
