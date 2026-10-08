@@ -1,6 +1,6 @@
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 DIST_DIR ?= $(ROOT_DIR)/dist
-PLUGIN_DIR ?= $(ROOT_DIR)/plugins
+PLUGIN_DIR ?= $(DIST_DIR)
 
 PLUGIN_NAME := $(shell awk -F': *' '$$1 == "Name" { print $$2; exit }' info.yaml)
 PLUGIN_VERSION := $(shell awk -F': *' '$$1 == "Version" { print $$2; exit }' info.yaml)

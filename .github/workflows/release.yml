@@ -42,11 +42,6 @@ jobs:
       - name: Package plugins
         run: make plugins
 
-      - name: Stage release assets
-        run: |
-          mkdir -p release-assets
-          cp plugins/*.plg release-assets/
-
       - name: Prepare release metadata
         id: release
         run: |
@@ -63,7 +58,7 @@ jobs:
             echo "Built from \`${GITHUB_SHA}\`."
             echo
             echo "Latest downloads:"
-            for asset in release-assets/*.plg; do
+            for asset in dist/*.plg; do
               name="$(basename "${asset}")"
               echo "- https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${name}"
             done
@@ -81,7 +76,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.release.outputs.tag }}" \
-            release-assets/*.plg \
+            dist/*.plg \
             --title "${{ steps.release.outputs.title }}" \
             --notes-file release-notes.md \
             --latest

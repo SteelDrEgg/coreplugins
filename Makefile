@@ -1,9 +1,10 @@
 ROOT_DIR := $(CURDIR)
 
-# PLUGIN_DIR is the directory containing the final .plg packages.  DIST_DIR
-# contains binaries and temporary package directories used while building.
-PLUGIN_DIR ?= plugins
 DIST_DIR ?= dist
+# Keep binaries, temporary package directories, and final .plg packages in one
+# build output directory. PLUGIN_DIR remains overridable for callers that need
+# to stage packages elsewhere.
+PLUGIN_DIR ?= $(DIST_DIR)
 
 PLUGIN_DIR_ABS := $(abspath $(PLUGIN_DIR))
 DIST_DIR_ABS := $(abspath $(DIST_DIR))

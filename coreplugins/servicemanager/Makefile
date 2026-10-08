@@ -1,6 +1,6 @@
 ROOT_DIR ?= $(abspath $(CURDIR)/../..)
 DIST_DIR ?= $(ROOT_DIR)/dist
-PLUGIN_DIR ?= $(ROOT_DIR)/plugins
+PLUGIN_DIR ?= $(DIST_DIR)
 
 PLUGIN_NAME := $(shell awk -F': *' '$$1 == "Name" { print $$2; exit }' info.yaml)
 PLUGIN_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -39,7 +39,9 @@ $(ROOT_NODE_MODULES_STAMP): $(ROOT_PACKAGE_JSON) $(ROOT_PACKAGE_LOCK) $(UI_DIR)/
 
 package: build
 	mkdir -p "$(PLUGIN_DIR_ABS)"
-	cp "$(DIST_DIR_ABS)/$(PLUGIN_NAME).plg" "$(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg"
+	if [ "$(DIST_DIR_ABS)" != "$(PLUGIN_DIR_ABS)" ]; then \
+		cp "$(DIST_DIR_ABS)/$(PLUGIN_NAME).plg" "$(PLUGIN_DIR_ABS)/$(PLUGIN_NAME).plg"; \
+	fi
 
 assemble:
 	rm -rf "$(PACKAGE_WORKDIR)"
