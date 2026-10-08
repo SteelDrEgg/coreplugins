@@ -33,11 +33,6 @@
   "description_placeholder": "Set an alias or comment",
   "value": "Value",
   "secret_value": "Secret value",
-  "value_edit_placeholder": "Leave * unchanged, or enter a new value to replace it",
-  "passphrase_optional": "Passphrase (optional)",
-  "passphrase_new_value_placeholder": "Enter a passphrase to protect the new value",
-  "passphrase_encrypt_placeholder": "Used to encrypt secret",
-  "passphrase_help_needed": "Do not set this unless you know you need it.",
   "passphrase_help_slow": "Decryption takes additional time.",
   "passphrase_help_unrecoverable": "If you forget the passphrase, the secret cannot be recovered.",
   "allowed_plugins": "Allowed plugins",
@@ -53,5 +48,12 @@
   "actions_for": "Actions for {name}",
   "api_invalid_response": "API returned an invalid JSON response.",
   "request_failed": "Request failed with HTTP {status}.",
-  "unknown_error": "An unknown error occurred."
+  "unknown_error": "An unknown error occurred.",
+  "replace_value": "Replace secret value",
+  "keep_value_help": "Keep the current value and its protection unless replacement is enabled.",
+  "protection": "Protection",
+  "identity_protection": "Manager identity",
+  "passphrase_protection": "Passphrase protection",
+  "passphrase": "Passphrase",
+  "passphrase_placeholder": "Enter the passphrase for the new value"
 }

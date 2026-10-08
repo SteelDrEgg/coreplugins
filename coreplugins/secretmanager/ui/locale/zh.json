@@ -33,11 +33,6 @@
   "description_placeholder": "设置别名或备注",
   "value": "值",
   "secret_value": "密钥值",
-  "value_edit_placeholder": "保留 * 表示不修改，或输入新值进行替换",
-  "passphrase_optional": "口令（可选）",
-  "passphrase_new_value_placeholder": "输入口令以保护新值",
-  "passphrase_encrypt_placeholder": "用于加密密钥",
-  "passphrase_help_needed": "除非确定需要，否则请勿设置。",
   "passphrase_help_slow": "解密会耗费额外时间。",
   "passphrase_help_unrecoverable": "忘记口令后将无法恢复密钥。",
   "allowed_plugins": "允许访问的插件",
@@ -53,5 +48,12 @@
   "actions_for": "{name} 的操作",
   "api_invalid_response": "API 返回了无效的 JSON 响应。",
   "request_failed": "请求失败，HTTP 状态码为 {status}。",
-  "unknown_error": "发生未知错误。"
+  "unknown_error": "发生未知错误。",
+  "replace_value": "替换密钥值",
+  "keep_value_help": "未启用替换时，保留当前密钥值及其保护方式。",
+  "protection": "保护方式",
+  "identity_protection": "管理器身份保护",
+  "passphrase_protection": "口令保护",
+  "passphrase": "口令",
+  "passphrase_placeholder": "输入用于保护新密钥值的口令"
 }

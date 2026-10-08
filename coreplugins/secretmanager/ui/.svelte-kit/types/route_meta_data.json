@@ -1,0 +1,8 @@
+{
+	"/": [
+		"src/routes/+layout.ts"
+	],
+	"/index.html": [
+		"src/routes/+layout.ts"
+	]
+}

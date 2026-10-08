@@ -1,5 +1,5 @@
 import * as m from '$lib/paraglide/messages.js';
-import type { SecretMeta } from './types';
+import type { SecretInfo, Protection } from './types';
 
 type ApiPayload = {
 	success: boolean;
@@ -8,6 +8,8 @@ type ApiPayload = {
 };
 
 export class ApiError extends Error {}
+
+const secretCollectionPath = '/secret-manager/secrets';
 
 async function api<T extends ApiPayload>(path: string, options: RequestInit = {}): Promise<T> {
 	const response = await fetch(
@@ -33,35 +35,58 @@ async function api<T extends ApiPayload>(path: string, options: RequestInit = {}
 	return payload as T;
 }
 
-export type WriteSecretInput = {
-	name: string;
-	description: string;
-	value: string;
-	passphrase: string;
-	allowed_plugins: string[];
+export type SecretValueInput = {
+	plaintext: string;
+	protection: Protection;
+	passphrase?: string;
 };
 
-export async function listSecrets(): Promise<SecretMeta[]> {
-	const payload = await api<ApiPayload & { keys: SecretMeta[] }>('/keys');
+export type CreateSecretInput = {
+	name: string;
+	description?: string;
+	value: SecretValueInput;
+	allowed_plugins?: string[];
+};
+
+export type UpdateSecretInput = {
+	name: string;
+	description?: string;
+	value?: SecretValueInput;
+	allowed_plugins?: string[];
+};
+
+export type SaveSecretInput =
+	| { kind: 'create'; input: CreateSecretInput }
+	| { kind: 'update'; input: UpdateSecretInput };
+
+export async function listSecrets(): Promise<SecretInfo[]> {
+	const payload = await api<ApiPayload & { keys: SecretInfo[] }>(secretCollectionPath);
 	return payload.keys || [];
 }
 
-export async function addSecret(input: WriteSecretInput): Promise<void> {
-	await api('/keys/add', { method: 'POST', body: JSON.stringify(input) });
+export async function createSecret(input: CreateSecretInput): Promise<void> {
+	await api(secretCollectionPath, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export async function updateSecret(input: WriteSecretInput): Promise<void> {
-	await api('/keys/update', { method: 'POST', body: JSON.stringify(input) });
+export async function updateSecret(input: UpdateSecretInput): Promise<void> {
+	const { name, ...fields } = input;
+	await api(secretResourcePath(name), { method: 'PATCH', body: JSON.stringify(fields) });
 }
 
 export async function revealSecret(name: string, passphrase: string): Promise<string> {
-	const payload = await api<ApiPayload & { value: string }>('/keys/reveal', {
+	const payload = await api<ApiPayload & { value: string }>(`${secretResourcePath(name)}/reveal`, {
 		method: 'POST',
-		body: JSON.stringify({ name, passphrase })
+		body: JSON.stringify({ passphrase })
 	});
 	return payload.value;
 }
 
 export async function deleteSecret(name: string): Promise<void> {
-	await api('/keys/delete', { method: 'POST', body: JSON.stringify({ name }) });
+	await api(secretResourcePath(name), { method: 'DELETE' });
+}
+
+function secretResourcePath(name: string): string {
+	// A single-dot path segment is normalized away by the browser.
+	if (name === '.') return `${secretCollectionPath}/~.`;
+	return `${secretCollectionPath}/${encodeURIComponent(name)}`;
 }

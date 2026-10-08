@@ -1,14 +1,17 @@
 package secrets
 
+import "strings"
+
 // CallerKind distinguishes who is invoking a secret-manager operation.
 type CallerKind int
 
 const (
+	CallerUnknown CallerKind = iota
 	// CallerHumanAdmin is an authenticated human via the HTTP admin UI. The
 	// host already gates these routes with AccessPolicy.RequireAuth, so the
 	// admin manages each secret's allow-list directly rather than being
 	// subject to it.
-	CallerHumanAdmin CallerKind = iota
+	CallerHumanAdmin
 	// CallerPlugin is another registered service calling in via a service
 	// message. Its identity comes from the host-authenticated message
 	// Source, never from caller-supplied payload data.
@@ -16,9 +19,7 @@ const (
 )
 
 // Caller identifies the actor performing a read/write/delete. It is the
-// single place that decides whether a per-secret ACL check or an
-// auto-grant-on-create applies, replacing what used to be two independently
-// hand-coded transport paths that happened to differ.
+// common permission boundary used by every transport.
 type Caller struct {
 	Kind CallerKind
 	// Plugin is the calling service name; only meaningful when
@@ -31,12 +32,27 @@ func HumanAdminCaller() Caller { return Caller{Kind: CallerHumanAdmin} }
 
 // PluginCaller identifies another service calling in by service message.
 // source must already be host-authenticated (e.g. IncomingServiceMessage.Source).
-func PluginCaller(source string) Caller { return Caller{Kind: CallerPlugin, Plugin: source} }
+func PluginCaller(source string) Caller {
+	return Caller{Kind: CallerPlugin, Plugin: strings.TrimSpace(source)}
+}
 
-// requiresACL reports whether this caller must pass the secret's per-caller
-// allow-list to read, update, or delete it.
-func (c Caller) requiresACL() bool { return c.Kind == CallerPlugin }
+func (c Caller) validate() error {
+	if c.Kind == CallerHumanAdmin || c.Kind == CallerPlugin && c.Plugin != "" && c.Plugin == strings.TrimSpace(c.Plugin) {
+		return nil
+	}
+	return NewError(ErrForbidden, "invalid caller identity")
+}
 
-// autoGrantOnCreate reports whether creating a secret should implicitly add
-// this caller to its allow-list.
-func (c Caller) autoGrantOnCreate() bool { return c.Kind == CallerPlugin }
+func (c Caller) allows(record SecretRecord) bool {
+	if c.Kind == CallerHumanAdmin {
+		return true
+	}
+	if c.Kind == CallerPlugin && c.Plugin != "" {
+		for _, plugin := range record.AllowedPlugins {
+			if plugin == c.Plugin {
+				return true
+			}
+		}
+	}
+	return false
+}

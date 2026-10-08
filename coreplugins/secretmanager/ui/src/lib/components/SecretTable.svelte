@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { locale } from '$lib/utils/locale';
-	import type { SecretMeta } from '../utils/types';
+	import type { SecretInfo } from '../utils/types';
 	import ActionMenu from './ActionMenu.svelte';
 
 	let {
@@ -11,7 +11,7 @@
 		onReveal,
 		onDelete
 	}: {
-		keys: SecretMeta[];
+		keys: SecretInfo[];
 		filterQuery: string;
 		onEdit: (name: string) => void;
 		onReveal: (name: string) => void;

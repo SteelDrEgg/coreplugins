@@ -9,10 +9,16 @@ import (
 	arupa "github.com/SteelDrEgg/arupa-sdk/golang"
 	arupawasm "github.com/SteelDrEgg/arupa-sdk/golang/wasm"
 
+	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/core/internal/agecrypto"
+	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/core/internal/paramsstore"
 	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/core/internal/secrets"
 )
 
-const serviceName = "secret-manager"
+const (
+	serviceName          = "secret-manager"
+	servicePath          = "/" + serviceName
+	secretCollectionPath = servicePath + "/secrets"
+)
 
 var authenticatedAccess = arupa.AccessPolicy{RequireAuth: true}
 
@@ -26,9 +32,7 @@ type secretManagerPlugin struct {
 }
 
 func newSecretManagerPlugin() *secretManagerPlugin {
-	p := &secretManagerPlugin{
-		secrets: secrets.NewService(secrets.NewParamsStore(), secrets.NewAgeEncryptor(), nil),
-	}
+	p := &secretManagerPlugin{}
 	p.messages = newSecretMessageListener(p)
 
 	p.sdk = &arupawasm.Service{
@@ -37,19 +41,14 @@ func newSecretManagerPlugin() *secretManagerPlugin {
 		Messages:   p.messages,
 		OnRegister: p.configure,
 	}
-	// *arupawasm.Service implements arupa.Logger; only available once sdk exists.
-	p.secrets.SetLogger(p.sdk)
 	return p
 }
 
-// configure is the OnRegister hook: it loads the Params snapshot, bootstraps
-// the encryption identity, and dynamically registers the HTTP/static
-// transports and routes the old static arupa.Registration used to declare
-// up front.
+// configure validates stored records, initializes cryptography and registers
+// the transports. No requests are accepted until identity persistence succeeds.
 func (p *secretManagerPlugin) configure(ctx context.Context) error {
-	p.secrets.Load(p.sdk, p.sdk.InitialParams())
-	if err := p.secrets.EnsureIdentity(ctx); err != nil {
-		return fmt.Errorf("secret-manager: ensure identity: %w", err)
+	if err := p.initializeSecrets(ctx, p.sdk); err != nil {
+		return fmt.Errorf("secret-manager: initialize: %w", err)
 	}
 
 	result, err := p.sdk.RegisterTransport(ctx, arupa.Transport{ID: "http", Type: arupa.TransportHTTP})
@@ -70,20 +69,54 @@ func (p *secretManagerPlugin) configure(ctx context.Context) error {
 		return err
 	}
 
-	result, err = p.sdk.RegisterRoutes(ctx, []arupa.Route{
-		{ID: "keys-list", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys", Access: authenticatedAccess}},
-		{ID: "keys-add", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/add", Access: authenticatedAccess}},
-		{ID: "keys-update", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/update", Access: authenticatedAccess}},
-		{ID: "keys-reveal", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/reveal", Access: authenticatedAccess}},
-		{ID: "keys-delete", TransportID: "http", HTTP: &arupa.HTTPRoute{Method: http.MethodPost, Pattern: "/keys/delete", Access: authenticatedAccess}},
-		{ID: "entry", TransportID: "pages", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/pages/", Access: authenticatedAccess, Rewrite: arupa.RewriteRule{Prefix: true, Location: true}}},
-		{ID: "keys-icon", TransportID: "icon", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: "/keys/icon/", Access: authenticatedAccess, Rewrite: arupa.RewriteRule{Prefix: true, Location: true}}},
-	})
+	result, err = p.sdk.RegisterRoutes(ctx, secretManagerRoutes())
 	if err := requireRegistration("register HTTP routes", result, err); err != nil {
 		return err
 	}
 
 	_ = p.sdk.LogInfo(ctx, "secret-manager registered")
+	return nil
+}
+
+func secretManagerRoutes() []arupa.Route {
+	// The host matches decoded path prefixes, without resource parameters.
+	// Authenticate both API prefixes here; the HTTP adapter selects the exact
+	// operation and returns an accurate Allow header for unsupported methods.
+	return []arupa.Route{
+		{ID: "secrets-collection", TransportID: "http", HTTP: &arupa.HTTPRoute{Pattern: secretCollectionPath, Access: authenticatedAccess}},
+		{ID: "secrets-resource", TransportID: "http", HTTP: &arupa.HTTPRoute{Pattern: secretCollectionPath + "/", Access: authenticatedAccess}},
+		{ID: "entry", TransportID: "pages", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: servicePath + "/pages/", Access: authenticatedAccess, Rewrite: arupa.RewriteRule{Prefix: true, Location: true}}},
+		{ID: "icon", TransportID: "icon", HTTP: &arupa.HTTPRoute{Method: http.MethodGet, Pattern: servicePath + "/icon/", Access: authenticatedAccess, Rewrite: arupa.RewriteRule{Prefix: true, Location: true}}},
+	}
+}
+
+func (p *secretManagerPlugin) initializeSecrets(ctx context.Context, client arupa.ParamsClient) error {
+	repository := paramsstore.New(client)
+	records, err := repository.List(ctx)
+	if err != nil {
+		return err
+	}
+	identity, err := repository.Identity(ctx)
+	if err != nil {
+		return err
+	}
+	if identity == "" {
+		for _, record := range records {
+			if record.EncryptedValue.Protection == secrets.ProtectionIdentity {
+				return fmt.Errorf("identity is missing while identity-protected secrets exist")
+			}
+		}
+	}
+	cipher, err := agecrypto.New(identity)
+	if err != nil {
+		return err
+	}
+	if identity == "" {
+		if err := repository.SetIdentity(ctx, cipher.Identity()); err != nil {
+			return fmt.Errorf("persist identity: %w", err)
+		}
+	}
+	p.secrets = secrets.NewService(repository, cipher)
 	return nil
 }
 

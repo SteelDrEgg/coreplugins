@@ -1,8 +1,8 @@
 Name: secret-manager
-Version: 0.2.1
+Version: 0.3.0
 Type: wasm
 ContractVersion: 2
 Command: $PLUGIN_ROOT/secret_manager.wasm
 DisplayName: Secrets
 Category: core
-Icon: /keys/icon/key.svg
+Icon: /secret-manager/icon/key.svg

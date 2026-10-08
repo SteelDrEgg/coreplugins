@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,35 +9,57 @@ import (
 	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/core/internal/secrets"
 )
 
-func writeJSONResponse(w http.ResponseWriter, status int, payload any) {
+type response struct {
+	Success bool                  `json:"success"`
+	Code    secrets.ErrorKind     `json:"code,omitempty"`
+	Message string                `json:"message,omitempty"`
+	Name    string                `json:"name,omitempty"`
+	Secret  *secrets.SecretInfo   `json:"secret,omitempty"`
+	Keys    *[]secrets.SecretInfo `json:"keys,omitempty"`
+	Value   *string               `json:"value,omitempty"`
+}
+
+func errorResponse(err error) response {
+	var domain *secrets.ServiceError
+	if errors.As(err, &domain) {
+		return response{Code: domain.Kind, Message: domain.Msg}
+	}
+	return response{Code: secrets.ErrInternal, Message: "secret operation failed"}
+}
+
+func errorStatus(err error) int {
+	switch errorResponse(err).Code {
+	case secrets.ErrInvalidInput, secrets.ErrPassphraseRequired, secrets.ErrInvalidPassphrase:
+		return http.StatusBadRequest
+	case secrets.ErrNotFound:
+		return http.StatusNotFound
+	case secrets.ErrConflict:
+		return http.StatusConflict
+	case secrets.ErrForbidden:
+		return http.StatusForbidden
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+func (p *secretManagerPlugin) logOperationError(ctx context.Context, err error) {
+	if p.sdk == nil {
+		return
+	}
+	var domain *secrets.ServiceError
+	if errors.As(err, &domain) && domain.Cause != nil {
+		_ = p.sdk.LogError(ctx, domain.Cause.Error())
+	}
+}
+
+func writeJSONResponse(w http.ResponseWriter, status int, payload response) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		http.Error(w, "Encode response", http.StatusInternalServerError)
+		http.Error(w, "encode response", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
-}
-
-// writeServiceError maps a secrets.ServiceError (or any other error) to the
-// same {"success": false, "message": ...} envelope every HTTP handler used
-// to build ad hoc, with a single place deciding the status code.
-func writeServiceError(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
-	var serviceErr *secrets.ServiceError
-	if errors.As(err, &serviceErr) {
-		switch serviceErr.Kind {
-		case secrets.ErrInvalidInput, secrets.ErrPassphraseRequired, secrets.ErrInvalidPassphrase:
-			status = http.StatusBadRequest
-		case secrets.ErrNotFound:
-			status = http.StatusNotFound
-		case secrets.ErrConflict:
-			status = http.StatusConflict
-		case secrets.ErrForbidden:
-			status = http.StatusForbidden
-		}
-	}
-	writeJSONResponse(w, status, map[string]any{"success": false, "message": err.Error()})
 }

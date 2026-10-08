@@ -1,133 +1,128 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/SteelDrEgg/coreplugins/coreplugins/secretmanager/core/internal/secrets"
 )
 
-type secretWriteRequest struct {
-	Name           string   `json:"name"`
-	Description    string   `json:"description"`
-	Value          string   `json:"value"`
-	Passphrase     string   `json:"passphrase"`
-	AllowedPlugins []string `json:"allowed_plugins"`
-}
+const methodNotAllowed secrets.ErrorKind = "method_not_allowed"
 
-type secretNameRequest struct {
-	Name string `json:"name"`
-}
-
-type secretRevealRequest struct {
-	Name       string `json:"name"`
-	Passphrase string `json:"passphrase"`
-}
-
-// handleHTTP is the admin HTTP API used by pages/index.html. Every handler
-// here is a thin adapter: decode the request, call into secrets.Service as
-// secrets.HumanAdminCaller(), and translate the result to JSON.
 func (p *secretManagerPlugin) handleHTTP(w http.ResponseWriter, req *http.Request) {
-	path := strings.TrimRight(req.URL.Path, "/")
-	if path == "" {
-		path = "/"
-	}
-
-	switch {
-	case req.Method == http.MethodGet && path == "/keys":
-		p.listResponse(w, req.Context())
-	case req.Method == http.MethodPost && path == "/keys/add":
-		p.addResponse(w, req.Context(), req.Body)
-	case req.Method == http.MethodPost && path == "/keys/update":
-		p.updateResponse(w, req.Context(), req.Body)
-	case req.Method == http.MethodPost && path == "/keys/reveal":
-		p.revealResponse(w, req.Context(), req.Body)
-	case req.Method == http.MethodPost && path == "/keys/delete":
-		p.deleteResponse(w, req.Context(), req.Body)
-	default:
-		writeJSONResponse(w, http.StatusNotFound, map[string]any{
-			"success": false,
-			"message": "Not found",
-		})
-	}
-}
-
-func (p *secretManagerPlugin) listResponse(w http.ResponseWriter, ctx context.Context) {
-	keys, err := p.secrets.ListSecrets(ctx, secrets.HumanAdminCaller())
+	command, status, allow, err := decodeHTTPCommand(req)
 	if err != nil {
-		writeServiceError(w, err)
+		if allow != "" {
+			w.Header().Set("Allow", allow)
+		}
+		if status == 0 {
+			status = errorStatus(err)
+		}
+		writeJSONResponse(w, status, errorResponse(err))
 		return
 	}
-	writeJSONResponse(w, http.StatusOK, map[string]any{"success": true, "keys": keys})
-}
-
-func (p *secretManagerPlugin) addResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
-	p.writeResponse(w, ctx, body, false)
-}
-
-func (p *secretManagerPlugin) updateResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
-	p.writeResponse(w, ctx, body, true)
-}
-
-func (p *secretManagerPlugin) writeResponse(w http.ResponseWriter, ctx context.Context, body io.Reader, update bool) {
-	var payload secretWriteRequest
-	if err := json.NewDecoder(body).Decode(&payload); err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
-		return
-	}
-
-	meta, err := p.secrets.WriteSecret(ctx, secrets.HumanAdminCaller(), secrets.WriteSecretInput{
-		Name:           payload.Name,
-		Description:    payload.Description,
-		Value:          payload.Value,
-		Passphrase:     payload.Passphrase,
-		AllowedPlugins: payload.AllowedPlugins,
-		Update:         update,
-	})
+	result, err := p.executeCommand(req.Context(), secrets.HumanAdminCaller(), command)
 	if err != nil {
-		writeServiceError(w, err)
+		p.logOperationError(req.Context(), err)
+		writeJSONResponse(w, errorStatus(err), errorResponse(err))
 		return
 	}
-
-	status := http.StatusOK
-	if !update {
+	status = http.StatusOK
+	if command.op == opCreate {
 		status = http.StatusCreated
+		w.Header().Set("Location", secretResourcePath(result.Name))
 	}
-	writeJSONResponse(w, status, map[string]any{"success": true, "name": meta.Name})
+	writeJSONResponse(w, status, result)
 }
 
-func (p *secretManagerPlugin) revealResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
-	var payload secretRevealRequest
-	if err := json.NewDecoder(body).Decode(&payload); err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
-		return
+func secretResourcePath(name string) string {
+	// Browsers normalize a single-dot URL segment even when it is percent-encoded.
+	// '~' is outside the secret-name alphabet, so this escape is unambiguous.
+	if name == "." {
+		return secretCollectionPath + "/~."
 	}
+	return secretCollectionPath + "/" + url.PathEscape(name)
+}
 
-	value, err := p.secrets.GetSecret(ctx, secrets.HumanAdminCaller(), payload.Name, payload.Passphrase)
+func decodeHTTPCommand(req *http.Request) (secretCommand, int, string, error) {
+	command := secretCommand{}
+	path := req.URL.Path // Already decoded by net/http and the host; never unescape twice.
+	if path == secretCollectionPath {
+		switch req.Method {
+		case http.MethodGet:
+			command.op = opList
+			return command, 0, "", requireEmptyBody(req.Body)
+		case http.MethodPost:
+			command.op = opCreate
+			return command, 0, "", decodeRequest(req.Body, &command.create)
+		default:
+			return command, http.StatusMethodNotAllowed, "GET, POST", secrets.NewError(methodNotAllowed, "method not allowed")
+		}
+	}
+	if !strings.HasPrefix(path, secretCollectionPath+"/") {
+		return command, http.StatusNotFound, "", secrets.NewError(secrets.ErrNotFound, "not found")
+	}
+	name := strings.TrimPrefix(path, secretCollectionPath+"/")
+	allow := "PATCH, DELETE"
+	if strings.HasSuffix(name, "/reveal") {
+		allow += ", POST"
+	}
+	switch req.Method {
+	case http.MethodPatch:
+		var fields struct {
+			Description    secrets.Field[string]             `json:"description"`
+			AllowedPlugins secrets.Field[[]string]           `json:"allowed_plugins"`
+			Value          secrets.Field[secrets.ValueInput] `json:"value"`
+		}
+		command.op = opUpdate
+		if err := decodeRequest(req.Body, &fields); err != nil {
+			return command, http.StatusBadRequest, "", err
+		}
+		command.update = secrets.UpdateSecretInput{
+			Name: name, Description: fields.Description,
+			AllowedPlugins: fields.AllowedPlugins, Value: fields.Value,
+		}
+	case http.MethodDelete:
+		command.op, command.name = opDelete, name
+		if err := requireEmptyBody(req.Body); err != nil {
+			return command, http.StatusBadRequest, "", err
+		}
+	case http.MethodPost:
+		if !strings.HasSuffix(name, "/reveal") {
+			return command, http.StatusMethodNotAllowed, allow, secrets.NewError(methodNotAllowed, "method not allowed")
+		}
+		var input struct {
+			Passphrase string `json:"passphrase"`
+		}
+		if err := decodeRequest(req.Body, &input); err != nil {
+			return command, http.StatusBadRequest, "", err
+		}
+		command.op, command.name = opReveal, strings.TrimSuffix(name, "/reveal")
+		command.passphrase = input.Passphrase
+	default:
+		return command, http.StatusMethodNotAllowed, allow, secrets.NewError(methodNotAllowed, "method not allowed")
+	}
+	if command.update.Name == "~." {
+		command.update.Name = "."
+	}
+	if command.name == "~." {
+		command.name = "."
+	}
+	return command, 0, "", nil
+}
+
+func requireEmptyBody(body io.Reader) error {
+	if body == nil {
+		return nil
+	}
+	data, err := io.ReadAll(io.LimitReader(body, 1))
 	if err != nil {
-		writeServiceError(w, err)
-		return
+		return secrets.NewError(secrets.ErrInvalidInput, "cannot read request body")
 	}
-	writeJSONResponse(w, http.StatusOK, map[string]any{
-		"success": true,
-		"name":    payload.Name,
-		"value":   value,
-	})
-}
-
-func (p *secretManagerPlugin) deleteResponse(w http.ResponseWriter, ctx context.Context, body io.Reader) {
-	var payload secretNameRequest
-	if err := json.NewDecoder(body).Decode(&payload); err != nil {
-		writeJSONResponse(w, http.StatusBadRequest, map[string]any{"success": false, "message": "Invalid JSON body"})
-		return
+	if len(data) != 0 {
+		return secrets.NewError(secrets.ErrInvalidInput, "request body must be empty")
 	}
-
-	if err := p.secrets.DeleteSecret(ctx, secrets.HumanAdminCaller(), payload.Name); err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSONResponse(w, http.StatusOK, map[string]any{"success": true, "name": payload.Name})
+	return nil
 }

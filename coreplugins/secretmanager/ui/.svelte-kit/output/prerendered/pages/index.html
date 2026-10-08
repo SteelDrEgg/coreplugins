@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link href="./_app/immutable/entry/start.ko1_s6UR.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/FMI0s7r_.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/DUcPvKhu.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/C7JvW5Ae.js" rel="modulepreload">
+		<link href="./_app/immutable/entry/app.DN3K8vjK.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/CjusWKSe.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/xxyg_ECW.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/kV5v4TTm.js" rel="modulepreload">
+		<link href="./_app/immutable/chunks/DTrtZQqC.js" rel="modulepreload">
+		<link href="./_app/immutable/nodes/0.DGBCFCVe.js" rel="modulepreload">
+		<link href="./_app/immutable/nodes/2.CDMl7N0d.js" rel="modulepreload">
+		<!--py8068--><meta name="description" content="Centralized secrets manager"/><!----><title>Secrets</title>
+		<link href="./_app/immutable/assets/0.Cz8Qd6Un.css" rel="stylesheet">
+		<link rel="stylesheet" href="/assets/css/scheme.css" />
+	</head>
+	<body class="light min-h-screen bg-base-200 text-base-content" data-sveltekit-preload-data="hover">
+		<script>
+			try {
+				const theme = localStorage.getItem('arupa.theme') === 'dark' ? 'dark' : 'light';
+				document.body.classList.remove('light', 'dark');
+				document.body.classList.add(theme);
+				document.documentElement.style.colorScheme = theme;
+			} catch {}
+		</script>
+		<div style="display: contents"><!--[--><!--[0--><!--[--><!--[--><main class="mx-auto grid w-full max-w-[1320px] gap-4 px-4 py-6 sm:py-8"><header class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div class="flex min-w-0 items-center gap-3"><div class="min-w-0"><h1 class="text-2xl font-semibold">Secrets</h1> <p class="truncate text-sm text-base-content/60">Centralized secrets manager</p></div></div> <div class="flex flex-wrap gap-2"><button class="btn btn-primary" type="button">Refresh</button></div></header> <!--[-1--><!--]--><!----> <section class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]"><div class="card min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm"><div class="flex flex-col gap-3 border-b border-base-300 p-4 sm:flex-row sm:items-center sm:justify-between"><h2 class="font-semibold">Secrets</h2> <input class="input w-full sm:w-64" type="search" placeholder="Filter by name" value=""/></div> <div class="min-w-0 overflow-x-auto"><!--[0--><div class="grid min-h-48 place-items-center p-6 text-base-content/60">Loading…</div><!--]--></div></div> <div class="grid gap-4"><div class="stat rounded-lg border border-base-300 bg-base-100 shadow-sm"><div class="stat-title">Managed secrets</div> <div class="stat-value text-2xl">0</div></div> <aside class="card h-fit min-w-0 rounded-lg border border-base-300 bg-base-100 shadow-sm"><div class="border-b border-base-300 p-4"><h2 class="font-semibold">Add secret</h2></div> <form class="grid gap-4 p-4"><label class="grid gap-2"><span class="text-sm font-semibold text-base-content/70">Name</span> <input class="input w-full font-mono" required="" maxlength="128" placeholder="Unique identifier" value=""/></label> <label class="grid gap-2"><span class="text-sm font-semibold text-base-content/70">Description (optional)</span> <input class="input w-full" maxlength="240" placeholder="Set an alias or comment" value=""/></label> <!--[-1--><!--]--> <!--[0--><label class="grid gap-2"><span class="text-sm font-semibold text-base-content/70">Value</span> <textarea class="textarea min-h-32 w-full font-mono text-sm" autocomplete="off" placeholder="Secret value"></textarea></label> <label class="grid gap-2"><span class="text-sm font-semibold text-base-content/70">Protection</span> <select class="select w-full"><option value="identity" selected="">Manager identity</option><option value="passphrase">Passphrase protection</option></select></label> <!--[-1--><!--]--><!--]--> <label class="grid gap-2"><span class="text-sm font-semibold text-base-content/70">Allowed plugins</span> <textarea class="textarea min-h-24 w-full font-mono text-sm" placeholder="one-plugin-per-line"></textarea> <span class="text-xs text-base-content/60">Empty means no plugin can access this secret.</span></label> <div class="flex flex-wrap justify-end gap-2"><button class="btn" type="button">Cancel</button> <button class="btn btn-primary" type="submit">Add secret</button></div></form><!----></aside></div></section></main> <dialog class="modal"><div class="modal-box max-w-2xl"><h3 class="text-lg font-semibold">Secret: </h3> <p class="mt-2 text-sm text-warning">HTTP is not safe; this secret may be compromised.</p> <textarea class="textarea mt-4 min-h-40 w-full select-all font-mono text-sm" readonly=""></textarea> <div class="modal-action"><button class="btn" type="button">Copy</button> <button class="btn btn-primary" type="button">Close</button></div></div> <form method="dialog" class="modal-backdrop"><button aria-label="Close dialog">Close</button></form></dialog><!----><!--]--><!----><!--]--><!--]--> <!--[-1--><!--]--><!--]-->
+			
+			<script>
+				{
+					__sveltekit_1rr1u3a = {
+						base: new URL(".", location).pathname.slice(0, -1),
+						assets: "/secret-manager/pages"
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("./_app/immutable/entry/start.ko1_s6UR.js"),
+						import("./_app/immutable/entry/app.DN3K8vjK.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element, {
+							node_ids: [0, 2],
+							data: [null,null],
+							form: null,
+							error: null
+						});
+					});
+				}
+			</script>
+		</div>
+	</body>
+</html>

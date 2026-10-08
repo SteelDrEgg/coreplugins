@@ -7,13 +7,13 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { initializeLocale, locale } from '$lib/utils/locale';
 	import { applyTheme, getTheme, onStoredThemeChange } from '$lib/utils/theme';
-	import { listSecrets, addSecret, updateSecret, revealSecret, deleteSecret } from '$lib/utils/api';
-	import type { WriteSecretInput } from '$lib/utils/api';
-	import type { SecretMeta, BannerMessage, MessageKind } from '$lib/utils/types';
+	import { listSecrets, createSecret, updateSecret, revealSecret, deleteSecret } from '$lib/utils/api';
+	import type { SaveSecretInput } from '$lib/utils/api';
+	import type { SecretInfo, BannerMessage, MessageKind } from '$lib/utils/types';
 
-	let keys: SecretMeta[] = $state([]);
+	let keys: SecretInfo[] = $state([]);
 	let loaded = $state(false);
-	let editing: SecretMeta | null = $state(null);
+	let editing: SecretInfo | null = $state(null);
 	let filterQuery = $state('');
 
 	let message: BannerMessage | null = $state(null);
@@ -72,15 +72,15 @@
 		editing = null;
 	}
 
-	async function handleSave(input: WriteSecretInput, isUpdate: boolean) {
+	async function handleSave(command: SaveSecretInput) {
 		try {
-			await withBusy(() => (isUpdate ? updateSecret(input) : addSecret(input)));
+			await withBusy(() => command.kind === 'update' ? updateSecret(command.input) : createSecret(command.input));
 			editing = null;
 			await loadKeys();
 			showMessage(
-				isUpdate
-					? m.secret_updated({ name: input.name }, localeOptions)
-					: m.secret_added({ name: input.name }, localeOptions),
+				command.kind === 'update'
+					? m.secret_updated({ name: command.input.name }, localeOptions)
+					: m.secret_added({ name: command.input.name }, localeOptions),
 				'success'
 			);
 		} catch (error) {
@@ -94,7 +94,7 @@
 	async function handleReveal(name: string) {
 		const item = keys.find((candidate) => candidate.name === name);
 		let passphrase = '';
-		if (item?.encryption === 'scrypt') {
+		if (item?.protection === 'passphrase') {
 			const entered = window.prompt(m.passphrase_for({ name }, localeOptions));
 			if (entered === null) return;
 			passphrase = entered;
@@ -153,14 +153,16 @@
 <main class="mx-auto grid w-full max-w-[1320px] gap-4 px-4 py-6 sm:py-8">
 	<header class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex min-w-0 items-center gap-3">
+			<!--
 			<div
 				class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-content"
 				aria-hidden="true"
 			>
 				<span class="icon key size-5"></span>
 			</div>
+			-->
 			<div class="min-w-0">
-				<h1 class="text-xl font-semibold">{m.secrets({}, localeOptions)}</h1>
+				<h1 class="text-2xl font-semibold">{m.secrets({}, localeOptions)}</h1>
 				<p class="truncate text-sm text-base-content/60">
 					{m.page_description({}, localeOptions)}
 				</p>
