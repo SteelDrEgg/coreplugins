@@ -63,7 +63,7 @@ jobs:
               echo "- https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${name}"
             done
             echo
-            echo "Plugin versions:"
+            echo "Versions:"
             for info in coreplugins/*/info.yaml; do
               plugin_name="$(awk -F': *' '$1 == "Name" { print $2; exit }' "${info}")"
               plugin_version="$(awk -F': *' '$1 == "Version" { print $2; exit }' "${info}")"
